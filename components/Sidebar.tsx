@@ -1,15 +1,18 @@
 import React from 'react';
-import { LayoutDashboard, Package, ShoppingCart, Users, Settings, LogOut, Sparkles, MessageCircle } from 'lucide-react';
-import { User, ViewState } from '../types';
+import { LayoutDashboard, Package, ShoppingCart, Users, Settings, LogOut, Sparkles, MessageCircle, Moon, Sun } from 'lucide-react';
+import { User, ViewState, Shop } from '../types';
 
 interface SidebarProps {
   currentView: ViewState;
   onChangeView: (view: ViewState) => void;
   onLogout: () => void;
   user: User;
+  shop?: Shop;
+  isDarkMode: boolean;
+  toggleTheme: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, onLogout, user }) => {
+const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, onLogout, user, shop, isDarkMode, toggleTheme }) => {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, allowed: ['ADMIN', 'SALES'] },
     { id: 'inventory', label: 'Inventory', icon: Package, allowed: ['ADMIN', 'SALES'] },
@@ -17,7 +20,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, onLogout, 
     { id: 'chat', label: 'Chat', icon: MessageCircle, allowed: ['ADMIN', 'SALES'] },
     { id: 'staff', label: 'Staff', icon: Users, allowed: ['ADMIN'] },
     { id: 'ai-assistant', label: 'AI Advisor', icon: Sparkles, allowed: ['ADMIN'] },
-    { id: 'settings', label: 'Settings', icon: Settings, allowed: ['ADMIN'] },
+    { id: 'settings', label: 'Settings', icon: Settings, allowed: ['ADMIN', 'SALES'] },
   ];
 
   return (
@@ -25,9 +28,19 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, onLogout, 
       {/* Desktop Sidebar */}
       <div className="hidden md:flex h-screen w-64 bg-slate-900 text-white flex-col fixed left-0 top-0 overflow-y-auto z-20 transition-all duration-300">
         <div className="p-6 border-b border-slate-800">
-          <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
-            ShopMaster
-          </h1>
+          <div className="flex items-center gap-3 mb-2">
+            {shop?.logoUrl ? (
+              <img src={shop.logoUrl} alt="Logo" className="w-10 h-10 rounded-lg object-contain bg-white" />
+            ) : (
+              <div className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center text-lg font-bold">
+                {shop?.name.charAt(0)}
+              </div>
+            )}
+            <div className="overflow-hidden">
+               <h1 className="text-lg font-bold truncate">{shop?.name || 'ShopMaster'}</h1>
+               {shop?.address && <p className="text-[10px] text-slate-400 truncate">{shop.address}</p>}
+            </div>
+          </div>
           <p className="text-xs text-slate-400 mt-1 uppercase tracking-wider">{user.role}</p>
         </div>
 
@@ -52,8 +65,16 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, onLogout, 
           })}
         </nav>
 
-        <div className="p-4 border-t border-slate-800">
-          <div className="mb-4 px-2">
+        <div className="p-4 border-t border-slate-800 space-y-2">
+          <button 
+             onClick={toggleTheme}
+             className="flex items-center w-full px-3 py-2 text-sm text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+          >
+            {isDarkMode ? <Sun size={18} className="mr-3" /> : <Moon size={18} className="mr-3" />}
+            {isDarkMode ? 'Light Mode' : 'Dark Mode'}
+          </button>
+          
+          <div className="px-2 pt-2">
             <p className="text-sm font-medium text-white truncate">{user.fullName}</p>
             <p className="text-xs text-slate-500 truncate">@{user.username}</p>
           </div>
@@ -68,7 +89,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, onLogout, 
       </div>
 
       {/* Mobile Bottom Navigation */}
-      <div className="md:hidden fixed bottom-0 left-0 w-full bg-white border-t border-slate-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-50 flex justify-around items-center px-2 py-2">
+      <div className="md:hidden fixed bottom-0 left-0 w-full bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-50 flex justify-around items-center px-2 py-2">
         {menuItems.slice(0, 5).map((item) => {
            if (!item.allowed.includes(user.role)) return null;
            const isActive = currentView === item.id;
@@ -77,7 +98,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, onLogout, 
                key={item.id}
                onClick={() => onChangeView(item.id as ViewState)}
                className={`flex flex-col items-center justify-center p-2 rounded-lg w-full transition-colors ${
-                 isActive ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'
+                 isActive ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'
                }`}
              >
                <item.icon size={20} className={isActive ? 'fill-current opacity-20' : ''} />
@@ -86,11 +107,11 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, onLogout, 
            );
         })}
         <button
-          onClick={onLogout}
-          className="flex flex-col items-center justify-center p-2 rounded-lg w-full text-red-400 hover:text-red-600"
+          onClick={() => onChangeView('settings')}
+          className={`flex flex-col items-center justify-center p-2 rounded-lg w-full transition-colors ${currentView === 'settings' ? 'text-blue-600' : 'text-slate-400'}`}
         >
-          <LogOut size={20} />
-          <span className="text-[10px] font-medium mt-1">Exit</span>
+          <Settings size={20} />
+           <span className="text-[10px] font-medium mt-1">Set</span>
         </button>
       </div>
     </>

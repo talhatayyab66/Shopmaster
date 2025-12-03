@@ -6,7 +6,7 @@ interface CardProps {
 }
 
 export const Card: React.FC<CardProps> = ({ children, className = '' }) => (
-  <div className={`bg-white rounded-xl shadow-sm border border-slate-200 p-6 ${className}`}>
+  <div className={`bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 transition-colors duration-300 ${className}`}>
     {children}
   </div>
 );
@@ -31,10 +31,10 @@ export const Button: React.FC<ButtonProps> = ({
   const baseStyle = "px-4 py-2 rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed";
   
   const variants = {
-    primary: "bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500",
-    secondary: "bg-slate-100 text-slate-700 hover:bg-slate-200 focus:ring-slate-500",
+    primary: "bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 dark:bg-blue-600 dark:hover:bg-blue-700",
+    secondary: "bg-slate-100 text-slate-700 hover:bg-slate-200 focus:ring-slate-500 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600",
     danger: "bg-red-600 text-white hover:bg-red-700 focus:ring-red-500",
-    ghost: "bg-transparent text-slate-600 hover:bg-slate-100 focus:ring-slate-400"
+    ghost: "bg-transparent text-slate-600 hover:bg-slate-100 focus:ring-slate-400 dark:text-slate-400 dark:hover:bg-slate-800"
   };
 
   return (
@@ -59,6 +59,8 @@ interface InputProps {
   className?: string;
   min?: string | number;
   step?: string | number;
+  accept?: string;
+  ref?: React.RefObject<HTMLInputElement>;
 }
 
 export const Input: React.FC<InputProps> = ({
@@ -70,11 +72,14 @@ export const Input: React.FC<InputProps> = ({
   required = false,
   className = '',
   min,
-  step
+  step,
+  accept,
+  ref
 }) => (
   <div className={`flex flex-col ${className}`}>
-    {label && <label className="mb-1 text-sm font-medium text-slate-700">{label}</label>}
+    {label && <label className="mb-1 text-sm font-medium text-slate-700 dark:text-slate-300">{label}</label>}
     <input
+      ref={ref}
       type={type}
       value={value}
       onChange={onChange}
@@ -82,7 +87,8 @@ export const Input: React.FC<InputProps> = ({
       required={required}
       min={min}
       step={step}
-      className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+      accept={accept}
+      className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500"
     />
   </div>
 );
@@ -98,10 +104,10 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-[fadeIn_0.2s_ease-out]">
-        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center">
-          <h3 className="text-lg font-semibold text-slate-800">{title}</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">&times;</button>
+      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-[fadeIn_0.2s_ease-out]">
+        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
+          <h3 className="text-lg font-semibold text-slate-800 dark:text-white">{title}</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">&times;</button>
         </div>
         <div className="p-6">
           {children}

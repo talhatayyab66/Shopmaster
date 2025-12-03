@@ -18,6 +18,8 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
   const [isSuccess, setIsSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  const currency = shop.currency || '$';
+
   // Filter products that have stock
   const availableProducts = products.filter(p => 
     p.stock > 0 && 
@@ -62,25 +64,44 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
     const doc = new jsPDF();
     
     // Header
+    let yPos = 20;
+
+    // Add Logo if available
+    if (shop.logoUrl) {
+      try {
+        const img = new Image();
+        img.src = shop.logoUrl;
+        doc.addImage(img, 'PNG', 14, 15, 20, 20); // x, y, w, h
+        yPos = 45; // Push text down
+      } catch (e) {
+        // Fallback if CORS or image load fails
+        console.warn('Could not add logo to PDF', e);
+      }
+    }
+
     doc.setFontSize(20);
     doc.setTextColor(40);
-    doc.text(shop.name, 14, 22);
+    doc.text(shop.name, shop.logoUrl ? 40 : 14, 25);
     
     doc.setFontSize(10);
-    doc.text(`Invoice #: ${invoiceId}`, 14, 30);
-    doc.text(`Date: ${new Date().toLocaleString()}`, 14, 35);
-    doc.text(`Cashier: ${user.fullName}`, 14, 40);
+    if (shop.address) {
+      doc.text(shop.address, shop.logoUrl ? 40 : 14, 32);
+    }
+    
+    doc.text(`Invoice #: ${invoiceId}`, 14, yPos);
+    doc.text(`Date: ${new Date().toLocaleString()}`, 14, yPos + 5);
+    doc.text(`Cashier: ${user.fullName}`, 14, yPos + 10);
 
     // Table
     const tableData = items.map(item => [
       item.name,
       item.quantity.toString(),
-      `$${item.price.toFixed(2)}`,
-      `$${(item.price * item.quantity).toFixed(2)}`
+      `${currency}${item.price.toFixed(2)}`,
+      `${currency}${(item.price * item.quantity).toFixed(2)}`
     ]);
 
     autoTable(doc, {
-      startY: 50,
+      startY: yPos + 20,
       head: [['Item', 'Qty', 'Price', 'Total']],
       body: tableData,
       theme: 'grid',
@@ -91,7 +112,7 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
     const finalY = (doc as any).lastAutoTable.finalY + 10;
     doc.setFontSize(12);
     doc.setFont("helvetica", "bold");
-    doc.text(`Total Amount: $${total.toFixed(2)}`, 140, finalY);
+    doc.text(`Total Amount: ${currency}${total.toFixed(2)}`, 140, finalY);
 
     // Footer
     doc.setFontSize(8);
@@ -108,18 +129,14 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
     const invoiceId = `INV-${Math.floor(Math.random() * 1000000)}`;
     
     try {
-        // Save Data First
         await onCompleteSale(cart, cartTotal);
-
-        // Generate PDF
         try {
           generatePDF(cart, cartTotal, invoiceId);
         } catch (e) {
           console.error("PDF Generation failed", e);
-          alert("Sale recorded but PDF generation failed.");
+          alert("Sale recorded but PDF generation failed (CORS issue often affects images).");
         }
         
-        // Reset
         setCart([]);
         setIsSuccess(true);
         setTimeout(() => setIsSuccess(false), 3000);
@@ -140,7 +157,7 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
           <input
             type="text"
             placeholder="Search product..."
-            className="w-full pl-10 pr-4 py-3 rounded-lg border border-slate-300 focus:ring-blue-500 outline-none shadow-sm"
+            className="w-full pl-10 pr-4 py-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-blue-500 outline-none shadow-sm"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -151,15 +168,15 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
             <button
               key={product.id}
               onClick={() => addToCart(product)}
-              className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 transition-all text-left flex flex-col justify-between group h-32 md:h-auto"
+              className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-blue-300 transition-all text-left flex flex-col justify-between group h-32 md:h-auto"
             >
               <div>
-                <h4 className="font-semibold text-slate-800 line-clamp-2 text-sm md:text-base">{product.name}</h4>
-                <p className="text-xs text-slate-500 mt-1">{product.category}</p>
+                <h4 className="font-semibold text-slate-800 dark:text-slate-100 line-clamp-2 text-sm md:text-base">{product.name}</h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{product.category}</p>
               </div>
               <div className="mt-2 flex justify-between items-end">
-                <span className="font-bold text-blue-600 text-sm md:text-base">${product.price.toFixed(2)}</span>
-                <span className="text-[10px] md:text-xs bg-slate-100 px-2 py-1 rounded text-slate-600">Qty: {product.stock}</span>
+                <span className="font-bold text-blue-600 dark:text-blue-400 text-sm md:text-base">{currency}{product.price.toFixed(2)}</span>
+                <span className="text-[10px] md:text-xs bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded text-slate-600 dark:text-slate-300">Qty: {product.stock}</span>
               </div>
             </button>
           ))}
@@ -172,27 +189,27 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
       </div>
 
       {/* Cart & Checkout */}
-      <Card className="w-full lg:w-96 flex flex-col p-0 overflow-hidden border-0 shadow-lg ring-1 ring-slate-200 order-1 lg:order-2 max-h-[40vh] lg:max-h-full">
-        <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+      <Card className="w-full lg:w-96 flex flex-col p-0 overflow-hidden border-0 shadow-lg ring-1 ring-slate-200 dark:ring-slate-700 order-1 lg:order-2 max-h-[40vh] lg:max-h-full">
+        <div className="p-4 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
           <div>
-            <h2 className="font-bold text-lg text-slate-800">Current Order</h2>
-            <p className="text-xs text-slate-500">{cart.length} Items</p>
+            <h2 className="font-bold text-lg text-slate-800 dark:text-white">Current Order</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">{cart.length} Items</p>
           </div>
-          <div className="font-bold text-xl text-blue-600">${cartTotal.toFixed(2)}</div>
+          <div className="font-bold text-xl text-blue-600 dark:text-blue-400">{currency}{cartTotal.toFixed(2)}</div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-white dark:bg-slate-800">
           {cart.map(item => (
-            <div key={item.id} className="flex justify-between items-center bg-white p-2 rounded-lg border border-slate-100 shadow-sm">
+            <div key={item.id} className="flex justify-between items-center bg-white dark:bg-slate-700 p-2 rounded-lg border border-slate-100 dark:border-slate-600 shadow-sm">
               <div className="flex-1 min-w-0 mr-2">
-                <h4 className="font-medium text-sm text-slate-900 truncate">{item.name}</h4>
-                <p className="text-xs text-slate-500">${item.price.toFixed(2)}</p>
+                <h4 className="font-medium text-sm text-slate-900 dark:text-white truncate">{item.name}</h4>
+                <p className="text-xs text-slate-500 dark:text-slate-300">{currency}{item.price.toFixed(2)}</p>
               </div>
               <div className="flex items-center gap-2">
-                <div className="flex items-center bg-slate-100 rounded-lg">
-                  <button onClick={() => updateQuantity(item.id, -1)} className="p-1 hover:text-blue-600"><Minus size={14} /></button>
-                  <span className="w-6 text-center text-sm font-medium">{item.quantity}</span>
-                  <button onClick={() => updateQuantity(item.id, 1)} className="p-1 hover:text-blue-600"><Plus size={14} /></button>
+                <div className="flex items-center bg-slate-100 dark:bg-slate-600 rounded-lg">
+                  <button onClick={() => updateQuantity(item.id, -1)} className="p-1 hover:text-blue-600 dark:hover:text-blue-300 text-slate-600 dark:text-slate-300"><Minus size={14} /></button>
+                  <span className="w-6 text-center text-sm font-medium text-slate-800 dark:text-white">{item.quantity}</span>
+                  <button onClick={() => updateQuantity(item.id, 1)} className="p-1 hover:text-blue-600 dark:hover:text-blue-300 text-slate-600 dark:text-slate-300"><Plus size={14} /></button>
                 </div>
                 <button onClick={() => removeFromCart(item.id)} className="text-red-400 hover:text-red-600">
                   <Trash2 size={16} />
@@ -208,7 +225,7 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
           )}
         </div>
 
-        <div className="p-4 bg-white border-t border-slate-200">
+        <div className="p-4 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700">
           <Button 
             onClick={handleCheckout} 
             disabled={cart.length === 0 || loading} 

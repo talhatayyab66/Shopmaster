@@ -8,6 +8,9 @@ export interface Shop {
   name: string;
   ownerId: string;
   createdAt: number;
+  address?: string;
+  currency?: string;
+  logoUrl?: string;
 }
 
 export interface User {

@@ -8,6 +8,7 @@ import POS from './components/POS';
 import Staff from './components/Staff';
 import ShopChat from './components/ShopChat';
 import AIAssistant from './components/AIAssistant';
+import Settings from './components/Settings';
 import { 
   getProducts, 
   saveProduct, 
@@ -24,11 +25,26 @@ const App = () => {
   const [shop, setShop] = useState<Shop | null>(null);
   const [currentView, setCurrentView] = useState<ViewState>('dashboard');
   
+  // Theme State
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    return localStorage.getItem('theme') === 'dark';
+  });
+
   // Data State
   const [products, setProducts] = useState<Product[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [staffList, setStaffList] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [isDarkMode]);
 
   // Restore session for Supabase Auth Users (Admins)
   useEffect(() => {
@@ -63,7 +79,10 @@ const App = () => {
               id: shopData.id,
               name: shopData.name,
               ownerId: shopData.owner_id,
-              createdAt: Number(shopData.created_at)
+              createdAt: Number(shopData.created_at),
+              address: shopData.address,
+              currency: shopData.currency || '$',
+              logoUrl: shopData.logo_url
             });
           }
         }
@@ -101,6 +120,13 @@ const App = () => {
         const fetchedStaff = await getUsersByShop(shop.id);
         setStaffList(fetchedStaff);
       }
+      
+      // Refresh shop data in case settings changed
+      const { data: latestShop } = await supabase.from('shops').select('*').eq('id', shop.id).single();
+      if (latestShop) {
+         setShop(prev => prev ? ({...prev, name: latestShop.name, address: latestShop.address, currency: latestShop.currency, logoUrl: latestShop.logo_url}) : null);
+      }
+
     } catch (error) {
       console.error("Failed to fetch data", error);
     } finally {
@@ -128,33 +154,36 @@ const App = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col md:flex-row transition-colors duration-300">
       <Sidebar 
         currentView={currentView} 
         onChangeView={setCurrentView} 
         onLogout={handleLogout}
         user={user}
+        shop={shop}
+        isDarkMode={isDarkMode}
+        toggleTheme={() => setIsDarkMode(!isDarkMode)}
       />
       
       <main className="flex-1 md:ml-64 p-4 md:p-8 overflow-y-auto h-screen mb-16 md:mb-0">
         <header className="flex justify-between items-center mb-6 md:mb-8">
           <div>
-            <h2 className="text-xl md:text-2xl font-bold text-slate-800 capitalize">
+            <h2 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-white capitalize">
               {currentView.replace('-', ' ')}
             </h2>
-            <p className="text-slate-500 text-xs md:text-sm">Welcome back, {user.fullName}</p>
+            <p className="text-slate-500 dark:text-slate-400 text-xs md:text-sm">Welcome back, {user.fullName}</p>
           </div>
           <div className="flex items-center gap-2 md:gap-4">
             {loading && <span className="text-xs md:text-sm text-blue-600 animate-pulse">Syncing...</span>}
-            <div className="bg-white px-3 py-1.5 md:px-4 md:py-2 rounded-lg shadow-sm border border-slate-200">
-              <span className="text-xs md:text-sm font-semibold text-slate-700">{shop.name}</span>
+            <div className="bg-white dark:bg-slate-800 px-3 py-1.5 md:px-4 md:py-2 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
+              <span className="text-xs md:text-sm font-semibold text-slate-700 dark:text-slate-200">{shop.name}</span>
             </div>
           </div>
         </header>
 
         <div className="animate-[fadeIn_0.3s_ease-out]">
           {currentView === 'dashboard' && (
-            <Dashboard sales={sales} products={products} />
+            <Dashboard sales={sales} products={products} currency={shop.currency || '$'} />
           )}
 
           {currentView === 'inventory' && (
@@ -193,7 +222,7 @@ const App = () => {
                   items: saleItems,
                   totalAmount: total,
                   timestamp: Date.now(),
-                  invoiceId: `INV-${Date.now()}` // simplified
+                  invoiceId: `INV-${Date.now()}`
                 });
                 await refreshData();
               }}
@@ -217,9 +246,13 @@ const App = () => {
           )}
           
           {currentView === 'settings' && (
-            <div className="flex items-center justify-center h-64 text-slate-400">
-              Settings module placeholder
-            </div>
+            <Settings 
+              user={user} 
+              shop={shop} 
+              refreshShop={refreshData}
+              isDarkMode={isDarkMode}
+              toggleTheme={() => setIsDarkMode(!isDarkMode)}
+            />
           )}
         </div>
       </main>

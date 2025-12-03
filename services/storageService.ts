@@ -7,10 +7,6 @@ const generateId = () => crypto.randomUUID();
 // --- Auth & User ---
 
 export const createUser = async (user: Omit<User, 'id'>): Promise<User> => {
-  // This function is primarily used for adding STAFF (Sales persons)
-  // We do NOT use supabase.auth.signUp here because the Admin is currently logged in.
-  // Instead, we store the staff credentials in the public.users table (Custom Auth for Staff).
-  
   const { data: existing } = await supabase
     .from('users')
     .select('username')
@@ -29,7 +25,7 @@ export const createUser = async (user: Omit<User, 'id'>): Promise<User> => {
     email: newUser.email,
     role: newUser.role,
     shop_id: newUser.shopId,
-    password_hash: newUser.passwordHash, // Storing plain/hashed password for staff custom auth
+    password_hash: newUser.passwordHash,
     full_name: newUser.fullName
   };
 
@@ -55,7 +51,7 @@ export const createShop = async (shopName: string, adminData: { fullName: string
   if (authError) throw new Error(`Auth Registration failed: ${authError.message}`);
   if (!authData.user) throw new Error("User creation failed");
 
-  const userId = authData.user.id; // Use the Auth ID
+  const userId = authData.user.id;
   const shopId = generateId();
 
   // 2. Create Shop
@@ -64,20 +60,22 @@ export const createShop = async (shopName: string, adminData: { fullName: string
     name: shopName,
     ownerId: userId,
     createdAt: Date.now(),
+    currency: '$',
   };
 
   const dbShop = {
     id: newShop.id,
     name: newShop.name,
     owner_id: newShop.ownerId,
-    created_at: newShop.createdAt
+    created_at: newShop.createdAt,
+    currency: '$'
   };
 
   // 3. Create Admin User Profile in public table
   const adminUser: User = {
     id: userId,
     username: adminData.username,
-    passwordHash: 'SUPABASE_AUTH', // Managed by Supabase
+    passwordHash: 'SUPABASE_AUTH',
     fullName: adminData.fullName,
     email: adminData.email,
     role: UserRole.ADMIN,
@@ -99,23 +97,47 @@ export const createShop = async (shopName: string, adminData: { fullName: string
 
   const { error: userError } = await supabase.from('users').insert(dbUser);
   if (userError) {
-    // Cleanup is harder with Auth user created, but for MVP we throw
     throw new Error(`User profile creation failed: ${userError.message}`);
   }
 
   return { shop: newShop, user: adminUser };
 };
 
+export const updateShop = async (shop: Partial<Shop> & { id: string }) => {
+  const updates: any = {};
+  if (shop.name) updates.name = shop.name;
+  if (shop.address) updates.address = shop.address;
+  if (shop.currency) updates.currency = shop.currency;
+  if (shop.logoUrl) updates.logo_url = shop.logoUrl;
+
+  const { error } = await supabase
+    .from('shops')
+    .update(updates)
+    .eq('id', shop.id);
+
+  if (error) throw new Error(error.message);
+};
+
+export const uploadShopLogo = async (shopId: string, file: File): Promise<string> => {
+  const fileExt = file.name.split('.').pop();
+  const fileName = `logo_${Date.now()}.${fileExt}`;
+  const filePath = `${shopId}/${fileName}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from('shop-assets')
+    .upload(filePath, file, { upsert: true });
+
+  if (uploadError) throw new Error('Logo upload failed: ' + uploadError.message);
+
+  const { data: { publicUrl } } = supabase.storage
+    .from('shop-assets')
+    .getPublicUrl(filePath);
+  
+  return publicUrl;
+};
+
 export const loginUser = async (identifier: string, password: string): Promise<{ user: User; shop: Shop } | null> => {
-  // Strategy: 
-  // 1. Try Supabase Auth (for Admins who use Email)
-  // 2. If valid email format, try auth.signIn
-  // 3. If that fails or not email, try custom DB auth (for Staff who use Username)
-
   let userId: string | null = null;
-  let isSupabaseAuth = false;
-
-  // Check if identifier looks like an email
   const isEmail = identifier.includes('@');
 
   if (isEmail) {
@@ -126,18 +148,15 @@ export const loginUser = async (identifier: string, password: string): Promise<{
 
     if (!error && data.user) {
       userId = data.user.id;
-      isSupabaseAuth = true;
     }
   }
 
-  // Fallback to Custom Auth for Staff (or Admin login by username if we supported that, but we'll stick to staff)
   if (!userId) {
-    // Manual check in users table
     const { data: staffData, error: staffError } = await supabase
       .from('users')
       .select('*')
       .eq('username', identifier)
-      .eq('password_hash', password) // Comparing plain stored password for staff
+      .eq('password_hash', password)
       .single();
 
     if (staffData && !staffError) {
@@ -147,7 +166,6 @@ export const loginUser = async (identifier: string, password: string): Promise<{
 
   if (!userId) return null;
 
-  // Fetch Full User Profile & Shop
   const { data: userData, error: userError } = await supabase
     .from('users')
     .select('*')
@@ -178,7 +196,10 @@ export const loginUser = async (identifier: string, password: string): Promise<{
     id: shopData.id,
     name: shopData.name,
     ownerId: shopData.owner_id,
-    createdAt: Number(shopData.created_at)
+    createdAt: Number(shopData.created_at),
+    address: shopData.address,
+    currency: shopData.currency || '$',
+    logoUrl: shopData.logo_url
   };
 
   return { user, shop };
@@ -350,7 +371,7 @@ export const getChatMessages = async (shopId: string): Promise<Message[]> => {
     userName: m.user_name,
     content: m.content,
     imageUrl: m.image_url,
-    createdAt: Number(m.created_at)
+    createdAt: Number(m.created_at || 0)
   }));
 };
 
@@ -364,15 +385,21 @@ export const sendChatMessage = async (
   let imageUrl = '';
 
   if (imageFile) {
-    const fileExt = imageFile.name.split('.').pop();
-    const fileName = `${Math.random()}.${fileExt}`;
+    // Generate clean safe filename
+    const fileExt = imageFile.name.split('.').pop()?.toLowerCase() || 'png';
+    const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
     const filePath = `${shopId}/${fileName}`;
+
+    console.log("Uploading to:", filePath);
 
     const { error: uploadError } = await supabase.storage
       .from('chat-images')
-      .upload(filePath, imageFile);
+      .upload(filePath, imageFile, { upsert: true });
 
-    if (uploadError) throw new Error('Image upload failed: ' + uploadError.message);
+    if (uploadError) {
+      console.error("Upload Error:", uploadError);
+      throw new Error(`Image upload failed: ${uploadError.message}. Check storage policies for 'chat-images'.`);
+    }
 
     const { data: { publicUrl } } = supabase.storage
       .from('chat-images')
