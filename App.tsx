@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Shop, ViewState, Product, Sale } from './types';
+import { User, Shop, ViewState, Product, Sale, UserRole } from './types';
 import Sidebar from './components/Sidebar';
 import Auth from './components/Auth';
 import Dashboard from './components/Dashboard';
@@ -13,8 +13,10 @@ import {
   deleteProduct, 
   getSales, 
   createSale, 
-  getUsersByShop 
+  getUsersByShop,
+  logoutUser
 } from './services/storageService';
+import { supabase } from './services/supabaseClient';
 
 const App = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -27,12 +29,57 @@ const App = () => {
   const [staffList, setStaffList] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // Restore session for Supabase Auth Users (Admins)
+  useEffect(() => {
+    const restoreSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        // Fetch User and Shop data for this session
+        const { data: userData } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+          
+        if (userData) {
+          const { data: shopData } = await supabase
+            .from('shops')
+            .select('*')
+            .eq('id', userData.shop_id)
+            .single();
+
+          if (shopData) {
+            setUser({
+              id: userData.id,
+              username: userData.username,
+              email: userData.email,
+              role: userData.role as UserRole,
+              shopId: userData.shop_id,
+              passwordHash: userData.password_hash,
+              fullName: userData.full_name
+            });
+            setShop({
+              id: shopData.id,
+              name: shopData.name,
+              ownerId: shopData.owner_id,
+              createdAt: Number(shopData.created_at)
+            });
+          }
+        }
+      }
+    };
+    
+    restoreSession();
+  }, []);
+
   // Fetch Data when user/shop changes
   useEffect(() => {
     if (user && shop) {
       refreshData();
       if (user.role === 'SALES') {
         setCurrentView('pos'); // Sales landing page
+      } else {
+        setCurrentView('dashboard'); // Admin landing
       }
     }
   }, [user, shop]);
@@ -65,7 +112,8 @@ const App = () => {
     setShop(loggedInShop);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await logoutUser();
     setUser(null);
     setShop(null);
     setCurrentView('dashboard');

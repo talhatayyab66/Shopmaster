@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { User, Shop } from '../types';
 import { Card, Button, Input } from './ui/LayoutComponents';
 import { createShop, loginUser } from '../services/storageService';
-import { Store, UserCircle } from 'lucide-react';
+import { Store } from 'lucide-react';
 
 interface AuthProps {
   onLogin: (user: User, shop: Shop) => void;
@@ -13,8 +13,8 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Login State
-  const [loginData, setLoginData] = useState({ username: '', password: '' });
+  // Login State (Identifier can be Username or Email)
+  const [loginData, setLoginData] = useState({ identifier: '', password: '' });
 
   // Register State
   const [regData, setRegData] = useState({
@@ -30,14 +30,15 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     setError('');
     setLoading(true);
     try {
-      const result = await loginUser(loginData.username, loginData.password);
+      // Logic handles both Supabase Auth (Email) and Staff Auth (Username)
+      const result = await loginUser(loginData.identifier, loginData.password);
       if (result) {
         onLogin(result.user, result.shop);
       } else {
-        setError('Invalid credentials or shop not found.');
+        setError('Invalid credentials or user not found.');
       }
-    } catch (err) {
-      setError('Login failed due to a network error.');
+    } catch (err: any) {
+      setError('Login failed: ' + (err.message || 'Network error'));
     } finally {
       setLoading(false);
     }
@@ -77,13 +78,13 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
           <div className="flex border-b border-slate-100 mb-6">
             <button
               className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${mode === 'login' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
-              onClick={() => setMode('login')}
+              onClick={() => { setMode('login'); setError(''); }}
             >
               Log In
             </button>
             <button
               className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${mode === 'register' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
-              onClick={() => setMode('register')}
+              onClick={() => { setMode('register'); setError(''); }}
             >
               Create Shop
             </button>
@@ -98,9 +99,9 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
           {mode === 'login' ? (
             <form onSubmit={handleLogin} className="space-y-4">
               <Input
-                label="Username"
-                value={loginData.username}
-                onChange={e => setLoginData({...loginData, username: e.target.value})}
+                label="Email (Admin) or Username (Staff)"
+                value={loginData.identifier}
+                onChange={e => setLoginData({...loginData, identifier: e.target.value})}
                 required
               />
               <Input
@@ -155,7 +156,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                 required
               />
               <Button type="submit" className="w-full py-3" disabled={loading}>
-                 {loading ? 'Creating...' : 'Create Account'}
+                 {loading ? 'Creating...' : 'Create Shop Account'}
               </Button>
             </form>
           )}

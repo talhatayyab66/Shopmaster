@@ -1,13 +1,16 @@
 import { supabase } from './supabaseClient';
 import { User, Shop, Product, Sale, UserRole } from '../types';
 
-// Helper to generate IDs client-side to maintain similarity with previous logic
+// Helper to generate IDs client-side
 const generateId = () => crypto.randomUUID();
 
 // --- Auth & User ---
 
 export const createUser = async (user: Omit<User, 'id'>): Promise<User> => {
-  // Check duplicates
+  // This function is primarily used for adding STAFF (Sales persons)
+  // We do NOT use supabase.auth.signUp here because the Admin is currently logged in.
+  // Instead, we store the staff credentials in the public.users table (Custom Auth for Staff).
+  
   const { data: existing } = await supabase
     .from('users')
     .select('username')
@@ -20,14 +23,13 @@ export const createUser = async (user: Omit<User, 'id'>): Promise<User> => {
 
   const newUser = { ...user, id: generateId() };
 
-  // Map to DB columns
   const dbUser = {
     id: newUser.id,
     username: newUser.username,
     email: newUser.email,
     role: newUser.role,
     shop_id: newUser.shopId,
-    password_hash: newUser.passwordHash,
+    password_hash: newUser.passwordHash, // Storing plain/hashed password for staff custom auth
     full_name: newUser.fullName
   };
 
@@ -38,10 +40,25 @@ export const createUser = async (user: Omit<User, 'id'>): Promise<User> => {
 };
 
 export const createShop = async (shopName: string, adminData: { fullName: string; username: string; email: string; password: string }) => {
-  const shopId = generateId();
-  const userId = generateId();
+  // 1. Register Admin in Supabase Auth
+  const { data: authData, error: authError } = await supabase.auth.signUp({
+    email: adminData.email,
+    password: adminData.password,
+    options: {
+      data: {
+        full_name: adminData.fullName,
+        username: adminData.username,
+      }
+    }
+  });
 
-  // Create Shop
+  if (authError) throw new Error(`Auth Registration failed: ${authError.message}`);
+  if (!authData.user) throw new Error("User creation failed");
+
+  const userId = authData.user.id; // Use the Auth ID
+  const shopId = generateId();
+
+  // 2. Create Shop
   const newShop: Shop = {
     id: shopId,
     name: shopName,
@@ -56,11 +73,11 @@ export const createShop = async (shopName: string, adminData: { fullName: string
     created_at: newShop.createdAt
   };
 
-  // Create Admin User
+  // 3. Create Admin User Profile in public table
   const adminUser: User = {
     id: userId,
     username: adminData.username,
-    passwordHash: adminData.password,
+    passwordHash: 'SUPABASE_AUTH', // Managed by Supabase
     fullName: adminData.fullName,
     email: adminData.email,
     role: UserRole.ADMIN,
@@ -77,27 +94,64 @@ export const createShop = async (shopName: string, adminData: { fullName: string
     full_name: adminUser.fullName
   };
 
-  // Execute Supabase calls
-  // Note: ideally this should be a transaction or RPC, but doing sequential for simplicity
   const { error: shopError } = await supabase.from('shops').insert(dbShop);
   if (shopError) throw new Error(`Shop creation failed: ${shopError.message}`);
 
   const { error: userError } = await supabase.from('users').insert(dbUser);
   if (userError) {
-    // Cleanup shop if user creation fails
-    await supabase.from('shops').delete().eq('id', shopId);
-    throw new Error(`User creation failed: ${userError.message}`);
+    // Cleanup is harder with Auth user created, but for MVP we throw
+    throw new Error(`User profile creation failed: ${userError.message}`);
   }
 
   return { shop: newShop, user: adminUser };
 };
 
-export const loginUser = async (username: string, password: string): Promise<{ user: User; shop: Shop } | null> => {
+export const loginUser = async (identifier: string, password: string): Promise<{ user: User; shop: Shop } | null> => {
+  // Strategy: 
+  // 1. Try Supabase Auth (for Admins who use Email)
+  // 2. If valid email format, try auth.signIn
+  // 3. If that fails or not email, try custom DB auth (for Staff who use Username)
+
+  let userId: string | null = null;
+  let isSupabaseAuth = false;
+
+  // Check if identifier looks like an email
+  const isEmail = identifier.includes('@');
+
+  if (isEmail) {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: identifier,
+      password: password
+    });
+
+    if (!error && data.user) {
+      userId = data.user.id;
+      isSupabaseAuth = true;
+    }
+  }
+
+  // Fallback to Custom Auth for Staff (or Admin login by username if we supported that, but we'll stick to staff)
+  if (!userId) {
+    // Manual check in users table
+    const { data: staffData, error: staffError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('username', identifier)
+      .eq('password_hash', password) // Comparing plain stored password for staff
+      .single();
+
+    if (staffData && !staffError) {
+      userId = staffData.id;
+    }
+  }
+
+  if (!userId) return null;
+
+  // Fetch Full User Profile & Shop
   const { data: userData, error: userError } = await supabase
     .from('users')
     .select('*')
-    .eq('username', username)
-    .eq('password_hash', password) // In production, use Supabase Auth or proper hashing comparison
+    .eq('id', userId)
     .single();
   
   if (userError || !userData) return null;
@@ -110,7 +164,6 @@ export const loginUser = async (username: string, password: string): Promise<{ u
 
   if (shopError || !shopData) return null;
 
-  // Map DB to Types
   const user: User = {
     id: userData.id,
     username: userData.username,
@@ -129,6 +182,10 @@ export const loginUser = async (username: string, password: string): Promise<{ u
   };
 
   return { user, shop };
+};
+
+export const logoutUser = async () => {
+  await supabase.auth.signOut();
 };
 
 export const getUsersByShop = async (shopId: string): Promise<User[]> => {
@@ -219,9 +276,7 @@ export const createSale = async (saleData: Omit<Sale, 'id'>) => {
   const saleId = generateId();
 
   // 1. Update Stock
-  // This should ideally be transactional. We will loop update for simplicity here.
   for (const item of saleData.items) {
-    // Fetch current stock
     const { data: product } = await supabase
       .from('products')
       .select('stock')
