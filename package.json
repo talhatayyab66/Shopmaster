@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@google/genai": "^0.1.2",
+    "@google/genai": "*",
     "@supabase/supabase-js": "^2.45.4",
     "jspdf": "^2.5.1",
     "jspdf-autotable": "^3.8.2",
@@ -20,6 +20,7 @@
     "recharts": "^2.12.7"
   },
   "devDependencies": {
+    "@types/node": "^22.5.0",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
