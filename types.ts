@@ -55,4 +55,14 @@ export interface Sale {
   invoiceId: string;
 }
 
-export type ViewState = 'dashboard' | 'inventory' | 'pos' | 'staff' | 'settings' | 'ai-assistant';
+export interface Message {
+  id: string;
+  shopId: string;
+  userId: string;
+  userName: string;
+  content: string;
+  imageUrl?: string;
+  createdAt: number;
+}
+
+export type ViewState = 'dashboard' | 'inventory' | 'pos' | 'staff' | 'settings' | 'ai-assistant' | 'chat';

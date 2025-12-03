@@ -50,8 +50,8 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, products }) => {
   }, [sales]);
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div className="space-y-6 pb-20 md:pb-0">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         <StatCard 
           title="Total Revenue" 
           value={`$${stats.totalRevenue.toLocaleString()}`} 
@@ -81,7 +81,7 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, products }) => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
+        <Card className="min-h-[300px]">
           <h3 className="text-lg font-semibold mb-4">Sales Trend (Last 7 Days)</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
@@ -106,7 +106,7 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, products }) => {
                 <tr>
                   <th className="px-4 py-2">Item</th>
                   <th className="px-4 py-2">Stock</th>
-                  <th className="px-4 py-2">Min Level</th>
+                  <th className="px-4 py-2">Min</th>
                   <th className="px-4 py-2">Status</th>
                 </tr>
               </thead>

@@ -6,6 +6,7 @@ import Dashboard from './components/Dashboard';
 import Inventory from './components/Inventory';
 import POS from './components/POS';
 import Staff from './components/Staff';
+import ShopChat from './components/ShopChat';
 import AIAssistant from './components/AIAssistant';
 import { 
   getProducts, 
@@ -127,7 +128,7 @@ const App = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
+    <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row">
       <Sidebar 
         currentView={currentView} 
         onChangeView={setCurrentView} 
@@ -135,18 +136,18 @@ const App = () => {
         user={user}
       />
       
-      <main className="flex-1 ml-64 p-8 overflow-y-auto h-screen">
-        <header className="flex justify-between items-center mb-8">
+      <main className="flex-1 md:ml-64 p-4 md:p-8 overflow-y-auto h-screen mb-16 md:mb-0">
+        <header className="flex justify-between items-center mb-6 md:mb-8">
           <div>
-            <h2 className="text-2xl font-bold text-slate-800 capitalize">
+            <h2 className="text-xl md:text-2xl font-bold text-slate-800 capitalize">
               {currentView.replace('-', ' ')}
             </h2>
-            <p className="text-slate-500 text-sm">Welcome back, {user.fullName}</p>
+            <p className="text-slate-500 text-xs md:text-sm">Welcome back, {user.fullName}</p>
           </div>
-          <div className="flex items-center gap-4">
-            {loading && <span className="text-sm text-blue-600 animate-pulse">Syncing...</span>}
-            <div className="bg-white px-4 py-2 rounded-lg shadow-sm border border-slate-200">
-              <span className="text-sm font-semibold text-slate-700">{shop.name}</span>
+          <div className="flex items-center gap-2 md:gap-4">
+            {loading && <span className="text-xs md:text-sm text-blue-600 animate-pulse">Syncing...</span>}
+            <div className="bg-white px-3 py-1.5 md:px-4 md:py-2 rounded-lg shadow-sm border border-slate-200">
+              <span className="text-xs md:text-sm font-semibold text-slate-700">{shop.name}</span>
             </div>
           </div>
         </header>
@@ -197,6 +198,10 @@ const App = () => {
                 await refreshData();
               }}
             />
+          )}
+
+          {currentView === 'chat' && (
+            <ShopChat user={user} shopId={shop.id} />
           )}
 
           {currentView === 'staff' && user.role === 'ADMIN' && (

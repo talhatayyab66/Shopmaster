@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient';
-import { User, Shop, Product, Sale, UserRole } from '../types';
+import { User, Shop, Product, Sale, UserRole, Message } from '../types';
 
 // Helper to generate IDs client-side
 const generateId = () => crypto.randomUUID();
@@ -329,4 +329,95 @@ export const getSales = async (shopId: string): Promise<Sale[]> => {
     timestamp: Number(s.timestamp),
     invoiceId: s.invoice_id
   }));
+};
+
+// --- Chat ---
+
+export const getChatMessages = async (shopId: string): Promise<Message[]> => {
+  const { data, error } = await supabase
+    .from('chat_messages')
+    .select('*')
+    .eq('shop_id', shopId)
+    .order('created_at', { ascending: true })
+    .limit(100);
+
+  if (error) throw new Error(error.message);
+
+  return (data || []).map((m: any) => ({
+    id: m.id,
+    shopId: m.shop_id,
+    userId: m.user_id,
+    userName: m.user_name,
+    content: m.content,
+    imageUrl: m.image_url,
+    createdAt: Number(m.created_at)
+  }));
+};
+
+export const sendChatMessage = async (
+  shopId: string, 
+  userId: string, 
+  userName: string, 
+  content: string, 
+  imageFile?: File
+) => {
+  let imageUrl = '';
+
+  if (imageFile) {
+    const fileExt = imageFile.name.split('.').pop();
+    const fileName = `${Math.random()}.${fileExt}`;
+    const filePath = `${shopId}/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('chat-images')
+      .upload(filePath, imageFile);
+
+    if (uploadError) throw new Error('Image upload failed: ' + uploadError.message);
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('chat-images')
+      .getPublicUrl(filePath);
+    
+    imageUrl = publicUrl;
+  }
+
+  const dbMessage = {
+    shop_id: shopId,
+    user_id: userId,
+    user_name: userName,
+    content: content,
+    image_url: imageUrl,
+    created_at: Date.now()
+  };
+
+  const { error } = await supabase.from('chat_messages').insert(dbMessage);
+  if (error) throw new Error(error.message);
+};
+
+export const subscribeToChat = (shopId: string, callback: (msg: Message) => void) => {
+  return supabase
+    .channel('chat-room-' + shopId)
+    .on(
+      'postgres_changes',
+      { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'chat_messages',
+        filter: `shop_id=eq.${shopId}`
+      },
+      (payload: any) => {
+        const m = payload.new;
+        const message: Message = {
+          id: m.id,
+          shopId: m.shop_id,
+          userId: m.user_id,
+          userName: m.user_name,
+          content: m.content,
+          imageUrl: m.image_url,
+          createdAt: Number(m.created_at)
+        };
+        callback(message);
+      }
+    )
+    .subscribe();
 };
