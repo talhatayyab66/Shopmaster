@@ -1,0 +1,168 @@
+import React, { useState } from 'react';
+import { User, Shop } from '../types';
+import { Card, Button, Input } from './ui/LayoutComponents';
+import { createShop, loginUser } from '../services/storageService';
+import { Store, UserCircle } from 'lucide-react';
+
+interface AuthProps {
+  onLogin: (user: User, shop: Shop) => void;
+}
+
+const Auth: React.FC<AuthProps> = ({ onLogin }) => {
+  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  // Login State
+  const [loginData, setLoginData] = useState({ username: '', password: '' });
+
+  // Register State
+  const [regData, setRegData] = useState({
+    shopName: '',
+    adminName: '',
+    username: '',
+    email: '',
+    password: ''
+  });
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const result = await loginUser(loginData.username, loginData.password);
+      if (result) {
+        onLogin(result.user, result.shop);
+      } else {
+        setError('Invalid credentials or shop not found.');
+      }
+    } catch (err) {
+      setError('Login failed due to a network error.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const { shop, user } = await createShop(regData.shopName, {
+        fullName: regData.adminName,
+        username: regData.username,
+        email: regData.email,
+        password: regData.password
+      });
+      onLogin(user, shop);
+    } catch (err: any) {
+      setError(err.message || 'Registration failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+      <div className="max-w-md w-full">
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-4 shadow-lg shadow-blue-600/30">
+            <Store className="text-white" size={32} />
+          </div>
+          <h1 className="text-3xl font-bold text-slate-900">ShopMaster AI</h1>
+          <p className="text-slate-500 mt-2">Intelligent Inventory Management</p>
+        </div>
+
+        <Card className="shadow-xl border-0">
+          <div className="flex border-b border-slate-100 mb-6">
+            <button
+              className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${mode === 'login' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+              onClick={() => setMode('login')}
+            >
+              Log In
+            </button>
+            <button
+              className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${mode === 'register' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+              onClick={() => setMode('register')}
+            >
+              Create Shop
+            </button>
+          </div>
+
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100">
+              {error}
+            </div>
+          )}
+
+          {mode === 'login' ? (
+            <form onSubmit={handleLogin} className="space-y-4">
+              <Input
+                label="Username"
+                value={loginData.username}
+                onChange={e => setLoginData({...loginData, username: e.target.value})}
+                required
+              />
+              <Input
+                label="Password"
+                type="password"
+                value={loginData.password}
+                onChange={e => setLoginData({...loginData, password: e.target.value})}
+                required
+              />
+              <Button type="submit" className="w-full py-3" disabled={loading}>
+                {loading ? 'Authenticating...' : 'Access Shop'}
+              </Button>
+            </form>
+          ) : (
+            <form onSubmit={handleRegister} className="space-y-4">
+              <Input
+                label="Shop Name"
+                placeholder="e.g., Downtown Electronics"
+                value={regData.shopName}
+                onChange={e => setRegData({...regData, shopName: e.target.value})}
+                required
+              />
+              <div className="grid grid-cols-2 gap-4">
+                <Input
+                  label="Admin Name"
+                  placeholder="John Doe"
+                  value={regData.adminName}
+                  onChange={e => setRegData({...regData, adminName: e.target.value})}
+                  required
+                />
+                <Input
+                  label="Username"
+                  placeholder="admin_john"
+                  value={regData.username}
+                  onChange={e => setRegData({...regData, username: e.target.value})}
+                  required
+                />
+              </div>
+              <Input
+                label="Email"
+                type="email"
+                placeholder="admin@example.com"
+                value={regData.email}
+                onChange={e => setRegData({...regData, email: e.target.value})}
+                required
+              />
+              <Input
+                label="Password"
+                type="password"
+                value={regData.password}
+                onChange={e => setRegData({...regData, password: e.target.value})}
+                required
+              />
+              <Button type="submit" className="w-full py-3" disabled={loading}>
+                 {loading ? 'Creating...' : 'Create Account'}
+              </Button>
+            </form>
+          )}
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+export default Auth;

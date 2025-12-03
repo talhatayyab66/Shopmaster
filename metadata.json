@@ -1,0 +1,5 @@
+{
+  "name": "ShopMaster AI",
+  "description": "A comprehensive inventory and stock management system with multi-shop support, role-based access control, PDF invoicing, and Gemini-powered business insights.",
+  "requestFramePermissions": []
+}
