@@ -36,6 +36,8 @@ const App = () => {
   const [staffList, setStaffList] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
 
+  const toggleTheme = () => setIsDarkMode(!isDarkMode);
+
   useEffect(() => {
     if (isDarkMode) {
       document.documentElement.classList.add('dark');
@@ -93,19 +95,21 @@ const App = () => {
   }, []);
 
   // Fetch Data when user/shop changes
+  // FIX: Only depend on IDs to prevent infinite loops when shop object reference changes
   useEffect(() => {
-    if (user && shop) {
+    if (user?.id && shop?.id) {
       refreshData();
-      if (user.role === 'SALES') {
-        setCurrentView('pos'); // Sales landing page
-      } else {
-        setCurrentView('dashboard'); // Admin landing
+      
+      // Initial routing logic
+      if (user.role === 'SALES' && currentView === 'dashboard') {
+        setCurrentView('pos'); 
       }
     }
-  }, [user, shop]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, shop?.id]); 
 
   const refreshData = async () => {
-    if (!shop) return;
+    if (!shop || !user) return;
     setLoading(true);
     try {
       const [fetchedProducts, fetchedSales] = await Promise.all([
@@ -116,27 +120,41 @@ const App = () => {
       setProducts(fetchedProducts);
       setSales(fetchedSales);
 
-      if (user?.role === 'ADMIN') {
+      if (user.role === UserRole.ADMIN) {
         const fetchedStaff = await getUsersByShop(shop.id);
         setStaffList(fetchedStaff);
       }
+
+      // Check for Shop updates (Settings changes) without triggering infinite loop
+      const { data: latestShop } = await supabase
+        .from('shops')
+        .select('*')
+        .eq('id', shop.id)
+        .single();
       
-      // Refresh shop data in case settings changed
-      const { data: latestShop } = await supabase.from('shops').select('*').eq('id', shop.id).single();
       if (latestShop) {
-         setShop(prev => prev ? ({...prev, name: latestShop.name, address: latestShop.address, currency: latestShop.currency, logoUrl: latestShop.logo_url}) : null);
+        // Only update state if data actually changed
+        if (
+          latestShop.name !== shop.name ||
+          latestShop.address !== shop.address ||
+          latestShop.currency !== shop.currency ||
+          latestShop.logo_url !== shop.logoUrl
+        ) {
+          setShop(prev => prev ? ({
+            ...prev,
+            name: latestShop.name,
+            address: latestShop.address,
+            currency: latestShop.currency || '$',
+            logoUrl: latestShop.logo_url
+          }) : null);
+        }
       }
 
-    } catch (error) {
-      console.error("Failed to fetch data", error);
+    } catch (e) {
+      console.error(e);
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleLogin = (loggedInUser: User, loggedInShop: Shop) => {
-    setUser(loggedInUser);
-    setShop(loggedInShop);
   };
 
   const handleLogout = async () => {
@@ -144,116 +162,116 @@ const App = () => {
     setUser(null);
     setShop(null);
     setCurrentView('dashboard');
-    setProducts([]);
-    setSales([]);
-    setStaffList([]);
+  };
+
+  const handleSaveProduct = async (product: any) => {
+    await saveProduct(product);
+    await refreshData();
+  };
+
+  const handleDeleteProduct = async (id: string) => {
+    await deleteProduct(id);
+    await refreshData();
+  };
+
+  const handleCompleteSale = async (items: any[], total: number) => {
+    if (!shop || !user) return;
+    
+    const saleData = {
+      shopId: shop.id,
+      sellerId: user.id,
+      sellerName: user.fullName,
+      items: items.map(item => ({
+        productId: item.id,
+        productName: item.name,
+        quantity: item.quantity,
+        priceAtSale: item.price,
+        subtotal: item.price * item.quantity
+      })),
+      totalAmount: total,
+      timestamp: Date.now(),
+      invoiceId: `INV-${Date.now().toString().slice(-6)}`
+    };
+
+    await createSale(saleData);
+    await refreshData();
   };
 
   if (!user || !shop) {
-    return <Auth onLogin={handleLogin} />;
+    return <Auth onLogin={(u, s) => { setUser(u); setShop(s); }} />;
   }
 
+  const renderView = () => {
+    switch (currentView) {
+      case 'dashboard':
+        return user.role === UserRole.ADMIN ? (
+          <Dashboard sales={sales} products={products} currency={shop.currency || '$'} />
+        ) : (
+          <div className="text-center mt-20 text-slate-500">Access Restricted</div>
+        );
+      case 'inventory':
+        return (
+          <Inventory 
+            products={products} 
+            user={user} 
+            onSave={handleSaveProduct} 
+            onDelete={handleDeleteProduct} 
+          />
+        );
+      case 'pos':
+        return (
+          <POS 
+            products={products} 
+            user={user} 
+            shop={shop}
+            onCompleteSale={handleCompleteSale} 
+          />
+        );
+      case 'staff':
+        return user.role === UserRole.ADMIN ? (
+          <Staff staff={staffList} shopId={shop.id} refreshStaff={refreshData} />
+        ) : (
+           <div className="text-center mt-20 text-slate-500">Access Restricted</div>
+        );
+      case 'ai-assistant':
+        return user.role === UserRole.ADMIN ? (
+          <AIAssistant products={products} sales={sales} />
+        ) : (
+           <div className="text-center mt-20 text-slate-500">Access Restricted</div>
+        );
+      case 'chat':
+        return <ShopChat user={user} shopId={shop.id} />;
+      case 'settings':
+        return (
+          <Settings 
+            user={user} 
+            shop={shop} 
+            refreshShop={refreshData} 
+            isDarkMode={isDarkMode}
+            toggleTheme={toggleTheme}
+          />
+        );
+      default:
+        return <Dashboard sales={sales} products={products} currency={shop.currency || '$'} />;
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col md:flex-row transition-colors duration-300">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
       <Sidebar 
         currentView={currentView} 
         onChangeView={setCurrentView} 
-        onLogout={handleLogout}
-        user={user}
+        onLogout={handleLogout} 
+        user={user} 
         shop={shop}
         isDarkMode={isDarkMode}
-        toggleTheme={() => setIsDarkMode(!isDarkMode)}
+        toggleTheme={toggleTheme}
       />
       
-      <main className="flex-1 md:ml-64 p-4 md:p-8 overflow-y-auto h-screen mb-16 md:mb-0">
-        <header className="flex justify-between items-center mb-6 md:mb-8">
-          <div>
-            <h2 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-white capitalize">
-              {currentView.replace('-', ' ')}
-            </h2>
-            <p className="text-slate-500 dark:text-slate-400 text-xs md:text-sm">Welcome back, {user.fullName}</p>
-          </div>
-          <div className="flex items-center gap-2 md:gap-4">
-            {loading && <span className="text-xs md:text-sm text-blue-600 animate-pulse">Syncing...</span>}
-            <div className="bg-white dark:bg-slate-800 px-3 py-1.5 md:px-4 md:py-2 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
-              <span className="text-xs md:text-sm font-semibold text-slate-700 dark:text-slate-200">{shop.name}</span>
-            </div>
-          </div>
-        </header>
-
-        <div className="animate-[fadeIn_0.3s_ease-out]">
-          {currentView === 'dashboard' && (
-            <Dashboard sales={sales} products={products} currency={shop.currency || '$'} />
-          )}
-
-          {currentView === 'inventory' && (
-            <Inventory 
-              products={products} 
-              user={user}
-              onSave={async (p) => {
-                await saveProduct(p);
-                await refreshData();
-              }}
-              onDelete={async (id) => {
-                await deleteProduct(id);
-                await refreshData();
-              }}
-            />
-          )}
-
-          {currentView === 'pos' && (
-            <POS 
-              products={products} 
-              user={user} 
-              shop={shop}
-              onCompleteSale={async (items, total) => {
-                const saleItems = items.map(i => ({
-                  productId: i.id,
-                  productName: i.name,
-                  quantity: i.quantity,
-                  priceAtSale: i.price,
-                  subtotal: i.price * i.quantity
-                }));
-                
-                await createSale({
-                  shopId: shop.id,
-                  sellerId: user.id,
-                  sellerName: user.fullName,
-                  items: saleItems,
-                  totalAmount: total,
-                  timestamp: Date.now(),
-                  invoiceId: `INV-${Date.now()}`
-                });
-                await refreshData();
-              }}
-            />
-          )}
-
-          {currentView === 'chat' && (
-            <ShopChat user={user} shopId={shop.id} />
-          )}
-
-          {currentView === 'staff' && user.role === 'ADMIN' && (
-            <Staff 
-              staff={staffList} 
-              shopId={shop.id} 
-              refreshStaff={refreshData} 
-            />
-          )}
-
-          {currentView === 'ai-assistant' && user.role === 'ADMIN' && (
-            <AIAssistant products={products} sales={sales} />
-          )}
-          
-          {currentView === 'settings' && (
-            <Settings 
-              user={user} 
-              shop={shop} 
-              refreshShop={refreshData}
-              isDarkMode={isDarkMode}
-              toggleTheme={() => setIsDarkMode(!isDarkMode)}
-            />
-          )}
+      {/* Main Content Area - adjusted for fixed sidebar */}
+      <main className="md:ml-64 min-h-screen p-4 md:p-8 pb-24 md:pb-8">
+        <div className="max-w-7xl mx-auto">
+          {renderView()}
         </div>
       </main>
     </div>
