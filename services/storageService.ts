@@ -37,6 +37,7 @@ export const createUser = async (user: Omit<User, 'id'>): Promise<User> => {
 
 export const createShop = async (shopName: string, adminData: { fullName: string; username: string; email: string; password: string }) => {
   // 1. Register Admin in Supabase Auth
+  // We include shop_name in metadata so we can create the shop record later if email confirmation interrupts the flow
   const { data: authData, error: authError } = await supabase.auth.signUp({
     email: adminData.email,
     password: adminData.password,
@@ -44,6 +45,7 @@ export const createShop = async (shopName: string, adminData: { fullName: string
       data: {
         full_name: adminData.fullName,
         username: adminData.username,
+        shop_name: shopName
       }
     }
   });
@@ -53,9 +55,19 @@ export const createShop = async (shopName: string, adminData: { fullName: string
 
   const userId = authData.user.id;
   const shopId = generateId();
-  // If session is null, email confirmation is required/enabled
+  
+  // If session is null, email confirmation is required/enabled.
+  // We CANNOT insert into public tables yet because we are not authenticated (RLS would fail).
+  // The records will be created in loginUser upon first successful login using the metadata.
   const confirmationRequired = !authData.session;
 
+  if (confirmationRequired) {
+    // Return dummies, they won't be used by UI when confirmationRequired is true
+    return { shop: null as unknown as Shop, user: null as unknown as User, confirmationRequired: true };
+  }
+
+  // If we have a session (no verification required), proceed to create records immediately
+  
   // 2. Create Shop
   const newShop: Shop = {
     id: shopId,
@@ -102,7 +114,7 @@ export const createShop = async (shopName: string, adminData: { fullName: string
     throw new Error(`User profile creation failed: ${userError.message}`);
   }
 
-  return { shop: newShop, user: adminUser, confirmationRequired };
+  return { shop: newShop, user: adminUser, confirmationRequired: false };
 };
 
 export const updateShop = async (shop: Partial<Shop> & { id: string }) => {
@@ -171,24 +183,84 @@ export const loginUser = async (identifier: string, password: string): Promise<{
   let userId: string | null = null;
   const isEmail = identifier.includes('@');
 
+  // Case 1: Supabase Auth (Admin/Owner)
   if (isEmail) {
     const { data, error } = await supabase.auth.signInWithPassword({
       email: identifier,
       password: password
     });
 
-    // If Supabase returns an error (e.g. Email not confirmed), throw it so UI can display it
     if (error) {
       throw new Error(error.message);
     }
 
     if (data.user) {
       userId = data.user.id;
+
+      // Check if the public user profile exists
+      // If the user signed up with email confirmation, the public profile might not exist yet (RLS blocked it)
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (!userData && data.user.user_metadata?.shop_name) {
+        // --- DEFERRED CREATION LOGIC ---
+        // Recover the missing Shop and User records using metadata
+        console.log("Creating missing profile/shop for verified user...");
+        const metadata = data.user.user_metadata;
+        const shopId = generateId();
+
+        const newShop: Shop = {
+          id: shopId,
+          name: metadata.shop_name,
+          ownerId: userId,
+          createdAt: Date.now(),
+          currency: '$',
+        };
+
+        const newUser: User = {
+          id: userId,
+          username: metadata.username,
+          passwordHash: 'SUPABASE_AUTH',
+          fullName: metadata.full_name,
+          email: data.user.email,
+          role: UserRole.ADMIN,
+          shopId: shopId
+        };
+
+        // Insert Shop
+        const { error: shopInsertError } = await supabase.from('shops').insert({
+          id: newShop.id,
+          name: newShop.name,
+          owner_id: newShop.ownerId,
+          created_at: newShop.createdAt,
+          currency: newShop.currency
+        });
+
+        if (shopInsertError) throw new Error("Failed to initialize shop: " + shopInsertError.message);
+
+        // Insert User
+        const { error: userInsertError } = await supabase.from('users').insert({
+          id: newUser.id,
+          username: newUser.username,
+          email: newUser.email,
+          role: newUser.role,
+          shop_id: newUser.shopId,
+          password_hash: newUser.passwordHash,
+          full_name: newUser.fullName
+        });
+
+        if (userInsertError) throw new Error("Failed to initialize user profile: " + userInsertError.message);
+
+        return { user: newUser, shop: newShop };
+      }
     }
   }
 
+  // Case 2: Staff Login (or fallback if Admin flow didn't return early)
   if (!userId) {
-    // Try staff login if not an email login or if email login failed silently (unlikely with throw above)
     const { data: staffData, error: staffError } = await supabase
       .from('users')
       .select('*')
@@ -203,6 +275,7 @@ export const loginUser = async (identifier: string, password: string): Promise<{
 
   if (!userId) return null;
 
+  // Final Fetch for existing users
   const { data: userData, error: userError } = await supabase
     .from('users')
     .select('*')
