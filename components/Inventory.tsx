@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Plus, Search, Edit2, Trash2, AlertCircle, ScanBarcode } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Plus, Search, Edit2, Trash2, AlertCircle, ScanBarcode, Filter, X } from 'lucide-react';
 import { Product, User, UserRole } from '../types';
 import { Card, Button, Input, Modal } from './ui/LayoutComponents';
 
@@ -8,14 +8,21 @@ interface InventoryProps {
   user: User;
   onSave: (product: Omit<Product, 'id'> & { id?: string }) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  defaultFilter?: 'all' | 'low-stock';
 }
 
-const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete }) => {
+const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete, defaultFilter = 'all' }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showLowStockOnly, setShowLowStockOnly] = useState(defaultFilter === 'low-stock');
   
+  // Update state if defaultFilter changes (e.g. navigation from dashboard)
+  useEffect(() => {
+    setShowLowStockOnly(defaultFilter === 'low-stock');
+  }, [defaultFilter]);
+
   // Form State
   const [formData, setFormData] = useState({
     name: '',
@@ -85,27 +92,47 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete 
       }
   };
 
-  const filteredProducts = products.filter(p => 
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    p.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.sku?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredProducts = products.filter(p => {
+    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          p.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          p.sku?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesStock = showLowStockOnly ? p.stock < p.minStockLevel : true;
+
+    return matchesSearch && matchesStock;
+  });
 
   const canEdit = user.role === UserRole.ADMIN;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between gap-4">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-          <input
-            type="text"
-            placeholder="Search item or scan barcode..."
-            className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-300 focus:ring-primary-500 focus:border-primary-500 outline-none"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+        <div className="flex gap-2 flex-1">
+            <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                <input
+                    type="text"
+                    placeholder="Search item or scan barcode..."
+                    className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-300 focus:ring-primary-500 focus:border-primary-500 outline-none"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                />
+            </div>
+            <button
+                onClick={() => setShowLowStockOnly(!showLowStockOnly)}
+                className={`px-3 py-2 rounded-lg border flex items-center gap-2 transition-colors ${
+                    showLowStockOnly 
+                    ? 'bg-amber-50 border-amber-200 text-amber-700' 
+                    : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50'
+                }`}
+                title="Toggle Low Stock Filter"
+            >
+                <Filter size={20} />
+                <span className="hidden sm:inline">Low Stock</span>
+                {showLowStockOnly && <X size={16} />}
+            </button>
         </div>
+
         {canEdit && (
           <Button onClick={() => handleOpenModal()} disabled={loading} className="w-full sm:w-auto">
             <Plus size={20} className="inline mr-2" />
@@ -113,6 +140,19 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete 
           </Button>
         )}
       </div>
+
+      {showLowStockOnly && (
+        <div className="p-3 bg-amber-50 border border-amber-100 rounded-lg flex items-center gap-2 text-amber-800 text-sm">
+            <AlertCircle size={16} />
+            Showing only low stock items ({filteredProducts.length})
+            <button 
+                onClick={() => setShowLowStockOnly(false)} 
+                className="ml-auto text-xs underline font-medium hover:text-amber-900"
+            >
+                Clear Filter
+            </button>
+        </div>
+      )}
 
       <Card className="overflow-hidden p-0">
         <div className="overflow-x-auto">
@@ -178,7 +218,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete 
                   <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
                     <div className="flex flex-col items-center justify-center">
                       <AlertCircle size={48} className="mb-2 text-slate-300" />
-                      <p>No products found matching your search.</p>
+                      <p>No products found.</p>
                     </div>
                   </td>
                 </tr>

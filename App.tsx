@@ -5,6 +5,7 @@ import Auth from './components/Auth';
 import Dashboard from './components/Dashboard';
 import Inventory from './components/Inventory';
 import POS from './components/POS';
+import SalesHistory from './components/SalesHistory';
 import Staff from './components/Staff';
 import ShopChat from './components/ShopChat';
 import AIAssistant from './components/AIAssistant';
@@ -95,6 +96,9 @@ const App = () => {
   const [shop, setShop] = useState<Shop | null>(null);
   const [currentView, setCurrentView] = useState<ViewState>('dashboard');
   
+  // Navigation State
+  const [inventoryFilter, setInventoryFilter] = useState<'all' | 'low-stock'>('all');
+
   // Theme State
   const [isDarkMode, setIsDarkMode] = useState(() => {
     return localStorage.getItem('theme') === 'dark';
@@ -333,6 +337,24 @@ const App = () => {
     await refreshData();
   };
 
+  // Handler for dashboard interactivity
+  const handleDashboardNavigation = (view: 'inventory' | 'orders', filter?: 'low-stock') => {
+    if (filter) {
+        setInventoryFilter(filter);
+    } else {
+        setInventoryFilter('all');
+    }
+    setCurrentView(view);
+  };
+
+  // Wrapper for Sidebar navigation to reset filters
+  const handleViewChange = (view: ViewState) => {
+    if (view === 'inventory') {
+        setInventoryFilter('all');
+    }
+    setCurrentView(view);
+  }
+
   if (!user || !shop) {
     return <Auth onLogin={(u, s) => { setUser(u); setShop(s); }} />;
   }
@@ -346,6 +368,7 @@ const App = () => {
             products={products} 
             currency={shop.currency || '$'} 
             themeColorHex={themeColor}
+            onNavigate={handleDashboardNavigation}
           />
         ) : (
           <div className="text-center mt-20 text-slate-500">Access Restricted</div>
@@ -357,6 +380,7 @@ const App = () => {
             user={user} 
             onSave={handleSaveProduct} 
             onDelete={handleDeleteProduct} 
+            defaultFilter={inventoryFilter}
           />
         );
       case 'pos':
@@ -366,6 +390,14 @@ const App = () => {
             user={user} 
             shop={shop}
             onCompleteSale={handleCompleteSale} 
+          />
+        );
+      case 'orders':
+        return (
+          <SalesHistory 
+             sales={sales}
+             shop={shop}
+             currency={shop.currency || '$'}
           />
         );
       case 'staff':
@@ -401,6 +433,7 @@ const App = () => {
             products={products} 
             currency={shop.currency || '$'} 
             themeColorHex={themeColor}
+            onNavigate={handleDashboardNavigation}
           />
         );
     }
@@ -410,7 +443,7 @@ const App = () => {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
       <Sidebar 
         currentView={currentView} 
-        onChangeView={setCurrentView} 
+        onChangeView={handleViewChange} 
         onLogout={handleLogout} 
         user={user} 
         shop={shop}

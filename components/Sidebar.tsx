@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, Package, ShoppingCart, Users, Settings, LogOut, Sparkles, MessageCircle, Moon, Sun } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, Users, Settings, LogOut, Sparkles, MessageCircle, Moon, Sun, FileText } from 'lucide-react';
 import { User, ViewState, Shop } from '../types';
 
 interface SidebarProps {
@@ -18,6 +18,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, onLogout, 
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, allowed: ['ADMIN', 'SALES'] },
     { id: 'inventory', label: 'Inventory', icon: Package, allowed: ['ADMIN', 'SALES'] },
     { id: 'pos', label: 'POS', icon: ShoppingCart, allowed: ['ADMIN', 'SALES'] },
+    { id: 'orders', label: 'Orders', icon: FileText, allowed: ['ADMIN', 'SALES'] },
     { id: 'chat', label: 'Chat', icon: MessageCircle, allowed: ['ADMIN', 'SALES'] },
     { id: 'staff', label: 'Staff', icon: Users, allowed: ['ADMIN'] },
     { id: 'ai-assistant', label: 'AI Advisor', icon: Sparkles, allowed: ['ADMIN'] },

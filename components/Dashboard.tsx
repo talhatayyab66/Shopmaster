@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { DollarSign, Package, AlertTriangle, TrendingUp } from 'lucide-react';
+import { DollarSign, Package, AlertTriangle, TrendingUp, ChevronRight } from 'lucide-react';
 import { Sale, Product } from '../types';
 import { Card } from './ui/LayoutComponents';
 
@@ -9,22 +9,30 @@ interface DashboardProps {
   products: Product[];
   currency: string;
   themeColorHex?: string;
+  onNavigate: (view: 'inventory' | 'orders', filter?: 'low-stock') => void;
 }
 
-const StatCard = ({ title, value, icon: Icon, color, subtitle }: any) => (
-  <Card className="flex items-start justify-between">
-    <div>
-      <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">{title}</p>
-      <h3 className="text-2xl font-bold text-slate-900 dark:text-white">{value}</h3>
-      {subtitle && <p className="text-xs text-slate-400 mt-1">{subtitle}</p>}
-    </div>
-    <div className={`p-3 rounded-lg ${color}`}>
-      <Icon size={24} className="text-white" />
-    </div>
-  </Card>
+const StatCard = ({ title, value, icon: Icon, color, subtitle, onClick }: any) => (
+  <Card 
+    className="flex items-start justify-between cursor-pointer hover:shadow-md hover:scale-[1.02] transition-all duration-200 group relative overflow-hidden"
+    children={
+        <div onClick={onClick} className="w-full h-full flex items-start justify-between">
+            <div className="z-10">
+                <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">{title}</p>
+                <h3 className="text-2xl font-bold text-slate-900 dark:text-white">{value}</h3>
+                {subtitle && <p className="text-xs text-slate-400 mt-1">{subtitle}</p>}
+            </div>
+            <div className={`p-3 rounded-lg ${color} shadow-sm group-hover:shadow-md transition-shadow`}>
+                <Icon size={24} className="text-white" />
+            </div>
+            {/* Hover effect indicator */}
+            <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-current to-transparent opacity-0 group-hover:opacity-20 transition-opacity" style={{ color: 'currentColor' }} />
+        </div>
+    } 
+  />
 );
 
-const Dashboard: React.FC<DashboardProps> = ({ sales, products, currency, themeColorHex = '#3b82f6' }) => {
+const Dashboard: React.FC<DashboardProps> = ({ sales, products, currency, themeColorHex = '#3b82f6', onNavigate }) => {
   const stats = useMemo(() => {
     const totalRevenue = sales.reduce((acc, sale) => acc + sale.totalAmount, 0);
     const totalOrders = sales.length;
@@ -59,18 +67,21 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, products, currency, themeC
           icon={DollarSign} 
           color="bg-emerald-500"
           subtitle="All time"
+          onClick={() => onNavigate('orders')}
         />
         <StatCard 
           title="Total Orders" 
           value={stats.totalOrders} 
           icon={TrendingUp} 
           color="bg-primary-500"
+          onClick={() => onNavigate('orders')}
         />
         <StatCard 
           title="Products in Stock" 
           value={stats.totalProducts} 
           icon={Package} 
           color="bg-indigo-500"
+          onClick={() => onNavigate('inventory')}
         />
         <StatCard 
           title="Low Stock Items" 
@@ -78,6 +89,7 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, products, currency, themeC
           icon={AlertTriangle} 
           color="bg-amber-500"
           subtitle="Requires attention"
+          onClick={() => onNavigate('inventory', 'low-stock')}
         />
       </div>
 
@@ -100,7 +112,15 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, products, currency, themeC
         </Card>
 
         <Card>
-          <h3 className="text-lg font-semibold mb-4 text-slate-800 dark:text-white">Low Stock Alert</h3>
+          <div className="flex justify-between items-center mb-4">
+             <h3 className="text-lg font-semibold text-slate-800 dark:text-white">Low Stock Alert</h3>
+             <button 
+                onClick={() => onNavigate('inventory', 'low-stock')}
+                className="text-xs text-primary-600 dark:text-primary-400 hover:underline flex items-center"
+             >
+                View All <ChevronRight size={12} />
+             </button>
+          </div>
           <div className="overflow-y-auto max-h-64">
             <table className="w-full text-sm text-left">
               <thead className="text-xs text-slate-500 uppercase bg-slate-50 dark:bg-slate-700 dark:text-slate-300">
@@ -115,7 +135,11 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, products, currency, themeC
                 {products
                   .filter(p => p.stock < p.minStockLevel)
                   .map(p => (
-                    <tr key={p.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-700">
+                    <tr 
+                        key={p.id} 
+                        onClick={() => onNavigate('inventory', 'low-stock')}
+                        className="border-b border-slate-100 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer"
+                    >
                       <td className="px-4 py-2 font-medium text-slate-900 dark:text-white">{p.name}</td>
                       <td className="px-4 py-2 text-red-600 font-bold">{p.stock}</td>
                       <td className="px-4 py-2 text-slate-600 dark:text-slate-400">{p.minStockLevel}</td>
