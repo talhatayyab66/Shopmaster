@@ -523,7 +523,8 @@ export const getChatMessages = async (shopId: string): Promise<Message[]> => {
     userName: m.user_name,
     content: m.content,
     imageUrl: m.image_url,
-    createdAt: Number(m.created_at || 0)
+    createdAt: Number(m.created_at || 0),
+    readBy: m.read_by || []
   }));
 };
 
@@ -563,7 +564,8 @@ export const sendChatMessage = async (
     user_name: userName,
     content: content,
     image_url: imageUrl,
-    created_at: Date.now()
+    created_at: Date.now(),
+    read_by: [userId] // Sender has read it
   };
 
   const { error } = await supabase.from('chat_messages').insert(dbMessage);
@@ -579,11 +581,50 @@ export const deleteChatMessage = async (messageId: string) => {
   if (error) throw new Error(error.message);
 };
 
+export const markMessagesAsRead = async (messageIds: string[], userId: string) => {
+  if (messageIds.length === 0) return;
+
+  // Ideally this would be a specialized RPC call to append to array efficiently, 
+  // but for simplicity we will loop or assume the backend handles it.
+  // We can't do a bulk update with array_append in the simple JS client easily without RLS policies permitting it.
+  // We will assume the existence of a stored procedure or just update the client for now.
+  // Workaround: We will rely on fetching and updating, or just sending a signal.
+  // Note: Due to limitations in the standard JS client for array modification, this implementation 
+  // assumes the DB handles 'read_by' merges or we replace the array.
+  
+  // Since we cannot write SQL here, we will iterate and update (inefficient but works for small scale)
+  // or skip if we assume the user cannot run migrations.
+  
+  // Attempting to use a raw query-like update for the specific messages
+  // Since we can't reliably append without race conditions in pure client update,
+  // we will try to fetch specific messages, add ID locally, and push back.
+  
+  const { data: messages } = await supabase
+    .from('chat_messages')
+    .select('id, read_by')
+    .in('id', messageIds);
+    
+  if (!messages) return;
+
+  const updates = messages.map(async (msg: any) => {
+    const currentReadBy = Array.isArray(msg.read_by) ? msg.read_by : [];
+    if (!currentReadBy.includes(userId)) {
+      await supabase
+        .from('chat_messages')
+        .update({ read_by: [...currentReadBy, userId] })
+        .eq('id', msg.id);
+    }
+  });
+
+  await Promise.all(updates);
+};
+
 export const subscribeToChat = (
   shopId: string, 
   callbacks: { 
     onInsert: (msg: Message) => void, 
-    onDelete: (id: string) => void 
+    onDelete: (id: string) => void,
+    onUpdate?: (msg: Message) => void
   }
 ) => {
   return supabase
@@ -606,11 +647,25 @@ export const subscribeToChat = (
             userName: m.user_name,
             content: m.content,
             imageUrl: m.image_url,
-            createdAt: Number(m.created_at)
+            createdAt: Number(m.created_at),
+            readBy: m.read_by || []
           };
           callbacks.onInsert(message);
         } else if (payload.eventType === 'DELETE') {
           callbacks.onDelete(payload.old.id);
+        } else if (payload.eventType === 'UPDATE' && callbacks.onUpdate) {
+           const m = payload.new;
+           const message: Message = {
+             id: m.id,
+             shopId: m.shop_id,
+             userId: m.user_id,
+             userName: m.user_name,
+             content: m.content,
+             imageUrl: m.image_url,
+             createdAt: Number(m.created_at),
+             readBy: m.read_by || []
+           };
+           callbacks.onUpdate(message);
         }
       }
     )

@@ -66,6 +66,7 @@ export interface Message {
   content: string;
   imageUrl?: string;
   createdAt: number;
+  readBy: string[]; // Array of User IDs who have read the message
 }
 
 export type ViewState = 'dashboard' | 'inventory' | 'pos' | 'staff' | 'settings' | 'ai-assistant' | 'chat';

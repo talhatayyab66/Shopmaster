@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Image as ImageIcon, Paperclip, Loader2, Trash2 } from 'lucide-react';
+import { Send, Image as ImageIcon, Paperclip, Loader2, Trash2, Check, CheckCheck } from 'lucide-react';
 import { Message, User } from '../types';
-import { getChatMessages, sendChatMessage, subscribeToChat, deleteChatMessage } from '../services/storageService';
+import { getChatMessages, sendChatMessage, subscribeToChat, deleteChatMessage, markMessagesAsRead } from '../services/storageService';
 import { Card } from './ui/LayoutComponents';
 
 interface ShopChatProps {
@@ -25,6 +25,15 @@ const ShopChat: React.FC<ShopChatProps> = ({ user, shopId }) => {
       try {
         const msgs = await getChatMessages(shopId);
         setMessages(msgs);
+        
+        // Mark unread messages as read
+        const unreadIds = msgs
+          .filter(m => m.userId !== user.id && !m.readBy?.includes(user.id))
+          .map(m => m.id);
+        
+        if (unreadIds.length > 0) {
+          markMessagesAsRead(unreadIds, user.id);
+        }
       } catch (error) {
         console.error("Failed to load messages", error);
       } finally {
@@ -38,22 +47,28 @@ const ShopChat: React.FC<ShopChatProps> = ({ user, shopId }) => {
     const subscription = subscribeToChat(shopId, {
       onInsert: (msg) => {
         setMessages((prev) => {
-          // Prevent duplicate messages if optimistic update was used
           if (prev.some(p => p.id === msg.id)) return prev;
           const updated = [...prev, msg];
-          // Sort by time to be safe
           return updated.sort((a, b) => a.createdAt - b.createdAt);
         });
+        
+        // Mark as read immediately if chat is open and it's not my message
+        if (msg.userId !== user.id) {
+          markMessagesAsRead([msg.id], user.id);
+        }
       },
       onDelete: (id) => {
         setMessages((prev) => prev.filter(m => m.id !== id));
+      },
+      onUpdate: (msg) => {
+        setMessages((prev) => prev.map(m => m.id === msg.id ? msg : m));
       }
     });
 
     return () => {
       subscription.unsubscribe();
     };
-  }, [shopId]);
+  }, [shopId, user.id]);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -102,6 +117,24 @@ const ShopChat: React.FC<ShopChatProps> = ({ user, shopId }) => {
     if (e.target.files && e.target.files[0]) {
       setSelectedImage(e.target.files[0]);
     }
+  };
+
+  // Helper to render ticks
+  const renderTicks = (msg: Message) => {
+    // If message is from me
+    if (msg.userId === user.id) {
+      const readByOthers = msg.readBy && msg.readBy.length > 1; // Length > 1 because sender is included
+      
+      if (readByOthers) {
+        // Bright ticks (Blue) - Read by others
+        return <CheckCheck size={14} className="text-blue-500" />;
+      } else {
+        // Double Grey - Received (Saved to DB/Delivered)
+        // Note: In this system, if it is in the list, it is 'received' by the server.
+        return <CheckCheck size={14} className="text-slate-400" />;
+      }
+    }
+    return null;
   };
 
   return (
@@ -173,11 +206,22 @@ const ShopChat: React.FC<ShopChatProps> = ({ user, shopId }) => {
                         />
                       </div>
                     )}
-                    {msg.content && <p className="text-sm break-words whitespace-pre-wrap">{msg.content}</p>}
+                    <div className="flex flex-col">
+                      {msg.content && <p className="text-sm break-words whitespace-pre-wrap">{msg.content}</p>}
+                      
+                      {/* Ticks & Timestamp */}
+                      <div className={`flex items-center gap-1 mt-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
+                         <span className={`text-[10px] ${isMe ? 'text-blue-100' : 'text-slate-400'}`}>
+                          {new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        </span>
+                        {isMe && (
+                           <span className="bg-white/20 rounded-full p-[1px]">
+                             {renderTicks(msg)}
+                           </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <span className="text-[10px] text-slate-400 mt-1 px-1">
-                    {new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                  </span>
                 </div>
               </div>
             );

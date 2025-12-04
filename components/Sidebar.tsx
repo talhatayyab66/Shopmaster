@@ -10,9 +10,10 @@ interface SidebarProps {
   shop?: Shop;
   isDarkMode: boolean;
   toggleTheme: () => void;
+  unreadCount?: number;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, onLogout, user, shop, isDarkMode, toggleTheme }) => {
+const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, onLogout, user, shop, isDarkMode, toggleTheme, unreadCount = 0 }) => {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, allowed: ['ADMIN', 'SALES'] },
     { id: 'inventory', label: 'Inventory', icon: Package, allowed: ['ADMIN', 'SALES'] },
@@ -52,7 +53,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, onLogout, 
               <button
                 key={item.id}
                 onClick={() => onChangeView(item.id as ViewState)}
-                className={`flex items-center w-full px-3 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
+                className={`flex items-center w-full px-3 py-3 rounded-lg text-sm font-medium transition-all duration-200 relative ${
                   isActive 
                     ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50' 
                     : 'text-slate-400 hover:text-white hover:bg-slate-800'
@@ -60,6 +61,9 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, onLogout, 
               >
                 <item.icon size={20} className="mr-3" />
                 {item.label}
+                {item.id === 'chat' && unreadCount > 0 && (
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-red-500 rounded-full shadow-sm animate-pulse"></span>
+                )}
               </button>
             );
           })}
@@ -97,11 +101,14 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, onLogout, 
              <button
                key={item.id}
                onClick={() => onChangeView(item.id as ViewState)}
-               className={`flex flex-col items-center justify-center p-2 rounded-lg w-full transition-colors ${
+               className={`flex flex-col items-center justify-center p-2 rounded-lg w-full transition-colors relative ${
                  isActive ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'
                }`}
              >
                <item.icon size={20} className={isActive ? 'fill-current opacity-20' : ''} />
+               {item.id === 'chat' && unreadCount > 0 && (
+                  <span className="absolute top-2 right-4 w-2 h-2 bg-red-500 rounded-full shadow-sm"></span>
+               )}
                <span className="text-[10px] font-medium mt-1">{item.label}</span>
              </button>
            );

@@ -18,7 +18,8 @@ import {
   createSale, 
   getUsersByShop,
   logoutUser,
-  subscribeToShopUpdates
+  subscribeToShopUpdates,
+  subscribeToChat
 } from './services/storageService';
 import { supabase } from './services/supabaseClient';
 
@@ -53,6 +54,9 @@ const App = () => {
   const [sales, setSales] = useState<Sale[]>([]);
   const [staffList, setStaffList] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
+  
+  // Notification State
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
 
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
 
@@ -125,21 +129,42 @@ const App = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, shop?.id]); 
 
-  // Real-time listener for Shop Settings
+  // Real-time listener for Shop Settings & Global Notifications
   useEffect(() => {
-    if (!shop?.id) return;
+    if (!shop?.id || !user?.id) return;
 
-    const subscription = subscribeToShopUpdates(shop.id, (updates) => {
+    // 1. Subscribe to Shop Updates
+    const shopSub = subscribeToShopUpdates(shop.id, (updates) => {
       setShop(prev => {
         if (!prev) return null;
         return { ...prev, ...updates };
       });
     });
 
+    // 2. Subscribe to Chat for Notifications (Global)
+    const chatSub = subscribeToChat(shop.id, {
+      onInsert: (msg) => {
+        // If chat is NOT active, or message is NOT from me
+        if (currentView !== 'chat' && msg.userId !== user.id) {
+           setUnreadChatCount(prev => prev + 1);
+        }
+      },
+      onDelete: () => {}, // No op for notifications
+      onUpdate: () => {}
+    });
+
     return () => {
-      subscription.unsubscribe();
+      shopSub.unsubscribe();
+      chatSub.unsubscribe();
     };
-  }, [shop?.id]);
+  }, [shop?.id, user?.id, currentView]);
+
+  // Reset unread count when opening chat
+  useEffect(() => {
+    if (currentView === 'chat') {
+      setUnreadChatCount(0);
+    }
+  }, [currentView]);
 
   const refreshData = async () => {
     if (!shop || !user) return;
@@ -158,9 +183,7 @@ const App = () => {
         setStaffList(fetchedStaff);
       }
 
-      // Check for Shop updates (Settings changes) without triggering infinite loop
-      // NOTE: With the new Realtime subscription, this polling is a fallback 
-      // but good to keep for initial loads or if socket disconnects.
+      // Check for Shop updates
       const { data: latestShop } = await supabase
         .from('shops')
         .select('*')
@@ -168,7 +191,6 @@ const App = () => {
         .single();
       
       if (latestShop) {
-        // Only update state if data actually changed significantly
         if (
           latestShop.name !== shop.name ||
           latestShop.address !== shop.address ||
@@ -301,6 +323,7 @@ const App = () => {
         shop={shop}
         isDarkMode={isDarkMode}
         toggleTheme={toggleTheme}
+        unreadCount={unreadChatCount}
       />
       
       {/* Main Content Area - adjusted for fixed sidebar */}
