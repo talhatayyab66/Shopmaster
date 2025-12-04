@@ -62,6 +62,8 @@ interface InputProps {
   step?: string | number;
   accept?: string;
   ref?: React.RefObject<HTMLInputElement>;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  autoFocus?: boolean;
 }
 
 export const Input: React.FC<InputProps> = ({
@@ -75,7 +77,9 @@ export const Input: React.FC<InputProps> = ({
   min,
   step,
   accept,
-  ref
+  ref,
+  onKeyDown,
+  autoFocus
 }) => {
   const [showPassword, setShowPassword] = useState(false);
   const isPassword = type === 'password';
@@ -90,6 +94,8 @@ export const Input: React.FC<InputProps> = ({
           type={inputType}
           value={value}
           onChange={onChange}
+          onKeyDown={onKeyDown}
+          autoFocus={autoFocus}
           placeholder={placeholder}
           required={required}
           min={min}

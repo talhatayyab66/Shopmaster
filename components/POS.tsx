@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Search, Plus, Minus, Trash2, Printer, CheckCircle } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Search, Plus, Minus, Trash2, Printer, CheckCircle, ScanBarcode } from 'lucide-react';
 import { Product, CartItem, User, Shop } from '../types';
 import { Card, Button } from './ui/LayoutComponents';
 import { jsPDF } from 'jspdf';
@@ -17,13 +17,15 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isSuccess, setIsSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const currency = shop.currency || '$';
 
-  // Filter products that have stock
+  // Filter products that have stock (Standard Search)
   const availableProducts = products.filter(p => 
     p.stock > 0 && 
-    (p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.sku?.includes(searchTerm))
+    (p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+     p.sku?.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const addToCart = (product: Product) => {
@@ -56,6 +58,31 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
 
   const removeFromCart = (id: string) => {
     setCart(cart.filter(item => item.id !== id));
+  };
+
+  // Handle Scan Logic (Enter key usually sent by scanner)
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && searchTerm.trim()) {
+      // 1. Try to find Exact SKU Match first (Barcode Scan)
+      const exactMatch = products.find(p => p.sku === searchTerm.trim() || p.sku === searchTerm);
+      
+      if (exactMatch && exactMatch.stock > 0) {
+        addToCart(exactMatch);
+        setSearchTerm(''); // Clear for next scan
+        // Keep focus
+        e.preventDefault(); 
+        return;
+      }
+
+      // 2. If no exact SKU match, check if there is exactly one search result in list
+      // This is helpful if someone types part of a name and hits enter
+      if (availableProducts.length === 1) {
+        addToCart(availableProducts[0]);
+        setSearchTerm('');
+        e.preventDefault();
+        return;
+      }
+    }
   };
 
   const cartTotal = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
@@ -153,14 +180,22 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
       {/* Product Selection */}
       <div className="flex-1 flex flex-col gap-4 order-2 lg:order-1">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 flex items-center gap-1">
+             <Search size={18} />
+          </div>
           <input
+            ref={searchInputRef}
             type="text"
-            placeholder="Search product..."
-            className="w-full pl-10 pr-4 py-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-primary-500 outline-none shadow-sm"
+            placeholder="Scan barcode or search product..."
+            className="w-full pl-10 pr-12 py-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-primary-500 outline-none shadow-sm transition-all focus:border-primary-500"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
+            onKeyDown={handleKeyDown}
+            autoFocus
           />
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" title="Barcode Scanner Ready">
+            <ScanBarcode size={20} className={searchTerm ? "text-primary-500" : ""} />
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 p-1 content-start">
@@ -173,6 +208,7 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
               <div>
                 <h4 className="font-semibold text-slate-800 dark:text-slate-100 line-clamp-2 text-sm md:text-base">{product.name}</h4>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{product.category}</p>
+                {product.sku && <p className="text-[10px] text-slate-400 font-mono mt-0.5">{product.sku}</p>}
               </div>
               <div className="mt-2 flex justify-between items-end">
                 <span className="font-bold text-primary-600 dark:text-primary-400 text-sm md:text-base">{currency}{product.price.toFixed(2)}</span>
@@ -182,7 +218,7 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
           ))}
           {availableProducts.length === 0 && (
             <div className="col-span-full flex items-center justify-center text-slate-400 h-40">
-              No products found.
+              {searchTerm ? 'No matching products found.' : 'No products found.'}
             </div>
           )}
         </div>

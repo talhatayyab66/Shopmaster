@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Search, Edit2, Trash2, AlertCircle } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, AlertCircle, ScanBarcode } from 'lucide-react';
 import { Product, User, UserRole } from '../types';
 import { Card, Button, Input, Modal } from './ui/LayoutComponents';
 
@@ -24,6 +24,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete 
     costPrice: '',
     stock: '',
     minStockLevel: '',
+    sku: ''
   });
 
   const handleOpenModal = (product?: Product) => {
@@ -36,10 +37,11 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete 
         costPrice: product.costPrice.toString(),
         stock: product.stock.toString(),
         minStockLevel: product.minStockLevel.toString(),
+        sku: product.sku || ''
       });
     } else {
       setEditingProduct(null);
-      setFormData({ name: '', category: '', price: '', costPrice: '', stock: '', minStockLevel: '' });
+      setFormData({ name: '', category: '', price: '', costPrice: '', stock: '', minStockLevel: '', sku: '' });
     }
     setIsModalOpen(true);
   };
@@ -56,6 +58,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete 
         costPrice: Number(formData.costPrice),
         stock: Number(formData.stock),
         minStockLevel: Number(formData.minStockLevel),
+        sku: formData.sku,
         ...(editingProduct ? { id: editingProduct.id } : {})
         };
         await onSave(payload);
@@ -84,7 +87,8 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete 
 
   const filteredProducts = products.filter(p => 
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    p.category.toLowerCase().includes(searchTerm.toLowerCase())
+    p.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    p.sku?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const canEdit = user.role === UserRole.ADMIN;
@@ -96,7 +100,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete 
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
           <input
             type="text"
-            placeholder="Search items..."
+            placeholder="Search item or scan barcode..."
             className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-300 focus:ring-primary-500 focus:border-primary-500 outline-none"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -116,6 +120,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete 
             <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="px-6 py-4">Product Name</th>
+                <th className="px-6 py-4">SKU / Barcode</th>
                 <th className="px-6 py-4">Category</th>
                 <th className="px-6 py-4">Price</th>
                 <th className="px-6 py-4">Stock</th>
@@ -127,6 +132,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete 
               {filteredProducts.map((product) => (
                 <tr key={product.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4 font-medium text-slate-900">{product.name}</td>
+                  <td className="px-6 py-4 text-slate-500 font-mono text-xs">{product.sku || '-'}</td>
                   <td className="px-6 py-4 text-slate-500">{product.category}</td>
                   <td className="px-6 py-4 font-medium text-slate-900">${product.price.toFixed(2)}</td>
                   <td className="px-6 py-4">
@@ -169,7 +175,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete 
               ))}
               {filteredProducts.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
+                  <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
                     <div className="flex flex-col items-center justify-center">
                       <AlertCircle size={48} className="mb-2 text-slate-300" />
                       <p>No products found matching your search.</p>
@@ -193,6 +199,13 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete 
             value={formData.name} 
             onChange={e => setFormData({...formData, name: e.target.value})} 
             required 
+            autoFocus
+          />
+          <Input 
+            label="Barcode / SKU" 
+            value={formData.sku} 
+            onChange={e => setFormData({...formData, sku: e.target.value})} 
+            placeholder="Scan barcode or enter SKU"
           />
           <Input 
             label="Category" 
