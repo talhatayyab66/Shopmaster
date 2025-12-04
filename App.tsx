@@ -9,6 +9,7 @@ import Staff from './components/Staff';
 import ShopChat from './components/ShopChat';
 import AIAssistant from './components/AIAssistant';
 import Settings from './components/Settings';
+import EmailConfirmedPage from './app/authenticate/page';
 import { 
   getProducts, 
   saveProduct, 
@@ -22,6 +23,22 @@ import {
 import { supabase } from './services/supabaseClient';
 
 const App = () => {
+  // Simple Manual Routing Check
+  const [pathname, setPathname] = useState(window.location.pathname);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setPathname(window.location.pathname);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Return early if on the authenticate page
+  if (pathname === '/authenticate' || pathname === '/authenticate/') {
+    return <EmailConfirmedPage />;
+  }
+
   const [user, setUser] = useState<User | null>(null);
   const [shop, setShop] = useState<Shop | null>(null);
   const [currentView, setCurrentView] = useState<ViewState>('dashboard');
