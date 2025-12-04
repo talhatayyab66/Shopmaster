@@ -97,7 +97,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete 
           <input
             type="text"
             placeholder="Search items..."
-            className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-300 focus:ring-blue-500 focus:border-blue-500 outline-none"
+            className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-300 focus:ring-primary-500 focus:border-primary-500 outline-none"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -153,7 +153,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete 
                     <td className="px-6 py-4 text-right space-x-2">
                       <button 
                         onClick={() => handleOpenModal(product)}
-                        className="text-blue-600 hover:text-blue-900 p-1 hover:bg-blue-50 rounded"
+                        className="text-primary-600 hover:text-primary-900 p-1 hover:bg-primary-50 rounded"
                       >
                         <Edit2 size={16} />
                       </button>

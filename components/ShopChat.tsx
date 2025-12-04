@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Image as ImageIcon, Paperclip, Loader2, Trash2, Check, CheckCheck } from 'lucide-react';
+import { Send, Image as ImageIcon, Paperclip, Loader2, Trash2, CheckCheck } from 'lucide-react';
 import { Message, User } from '../types';
 import { getChatMessages, sendChatMessage, subscribeToChat, deleteChatMessage, markMessagesAsRead } from '../services/storageService';
 import { Card } from './ui/LayoutComponents';
@@ -126,12 +126,11 @@ const ShopChat: React.FC<ShopChatProps> = ({ user, shopId }) => {
       const readByOthers = msg.readBy && msg.readBy.length > 1; // Length > 1 because sender is included
       
       if (readByOthers) {
-        // Bright ticks (Blue) - Read by others
-        return <CheckCheck size={14} className="text-blue-500" />;
+        // Bright ticks (Blue/Primary) - Read by others
+        return <CheckCheck size={14} className="text-primary-300" />;
       } else {
         // Double Grey - Received (Saved to DB/Delivered)
-        // Note: In this system, if it is in the list, it is 'received' by the server.
-        return <CheckCheck size={14} className="text-slate-400" />;
+        return <CheckCheck size={14} className="text-primary-800/50" />;
       }
     }
     return null;
@@ -147,7 +146,7 @@ const ShopChat: React.FC<ShopChatProps> = ({ user, shopId }) => {
             <p className="text-xs text-slate-500 dark:text-slate-400">Real-time collaboration</p>
           </div>
           <div className="flex -space-x-2">
-            <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs ring-2 ring-white dark:ring-slate-800">T</div>
+            <div className="w-8 h-8 rounded-full bg-primary-500 flex items-center justify-center text-white text-xs ring-2 ring-white dark:ring-slate-800">T</div>
             <div className="w-8 h-8 rounded-full bg-purple-500 flex items-center justify-center text-white text-xs ring-2 ring-white dark:ring-slate-800">S</div>
           </div>
         </div>
@@ -159,7 +158,7 @@ const ShopChat: React.FC<ShopChatProps> = ({ user, shopId }) => {
         >
           {loading && (
             <div className="flex justify-center items-center h-full">
-              <Loader2 className="animate-spin text-blue-500" size={24} />
+              <Loader2 className="animate-spin text-primary-500" size={24} />
             </div>
           )}
           
@@ -178,7 +177,7 @@ const ShopChat: React.FC<ShopChatProps> = ({ user, shopId }) => {
                   <span className="text-[10px] text-slate-400 mb-1 px-1">{msg.userName}</span>
                   <div className={`relative group p-3 rounded-2xl shadow-sm ${
                     isMe 
-                      ? 'bg-blue-600 text-white rounded-tr-none' 
+                      ? 'bg-primary-600 text-white rounded-tr-none' 
                       : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-tl-none'
                   }`}>
                     {/* Delete Button */}
@@ -211,7 +210,7 @@ const ShopChat: React.FC<ShopChatProps> = ({ user, shopId }) => {
                       
                       {/* Ticks & Timestamp */}
                       <div className={`flex items-center gap-1 mt-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
-                         <span className={`text-[10px] ${isMe ? 'text-blue-100' : 'text-slate-400'}`}>
+                         <span className={`text-[10px] ${isMe ? 'text-primary-100' : 'text-slate-400'}`}>
                           {new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                         </span>
                         {isMe && (
@@ -232,7 +231,7 @@ const ShopChat: React.FC<ShopChatProps> = ({ user, shopId }) => {
         <div className="p-3 bg-white dark:bg-slate-800 border-t border-slate-100 dark:border-slate-700">
           {selectedImage && (
              <div className="flex items-center gap-2 mb-2 p-2 bg-slate-50 dark:bg-slate-700 rounded-lg animate-[fadeIn_0.2s_ease-out]">
-                <ImageIcon size={16} className="text-blue-500"/>
+                <ImageIcon size={16} className="text-primary-500"/>
                 <span className="text-xs text-slate-600 dark:text-slate-300 truncate max-w-[200px]">{selectedImage.name}</span>
                 <button 
                   onClick={() => {
@@ -249,7 +248,7 @@ const ShopChat: React.FC<ShopChatProps> = ({ user, shopId }) => {
             <button 
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="p-2 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-full transition-colors"
+              className="p-2 text-slate-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-full transition-colors"
               title="Attach Image"
             >
               <Paperclip size={20} />
@@ -266,12 +265,12 @@ const ShopChat: React.FC<ShopChatProps> = ({ user, shopId }) => {
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               placeholder="Type a message..."
-              className="flex-1 py-2 px-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white transition-all"
+              className="flex-1 py-2 px-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-full focus:outline-none focus:ring-2 focus:ring-primary-500 dark:text-white transition-all"
             />
             <button 
               type="submit"
               disabled={(!newMessage.trim() && !selectedImage) || sending}
-              className="p-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-md shadow-blue-200 dark:shadow-none flex items-center justify-center min-w-[40px]"
+              className="p-2 bg-primary-600 text-white rounded-full hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-md shadow-primary-200 dark:shadow-none flex items-center justify-center min-w-[40px]"
             >
               {sending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
             </button>

@@ -72,7 +72,7 @@ const Staff: React.FC<StaffProps> = ({ staff, shopId, refreshStaff }) => {
           <Card key={user.id} className="relative group hover:shadow-md transition-shadow">
             <div className="flex items-start justify-between">
               <div className="flex items-center space-x-4">
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold text-white ${user.role === 'ADMIN' ? 'bg-purple-600' : 'bg-blue-500'}`}>
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold text-white ${user.role === 'ADMIN' ? 'bg-purple-600' : 'bg-primary-500'}`}>
                   {user.fullName.charAt(0).toUpperCase()}
                 </div>
                 <div>

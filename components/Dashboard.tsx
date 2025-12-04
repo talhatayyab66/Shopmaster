@@ -8,6 +8,7 @@ interface DashboardProps {
   sales: Sale[];
   products: Product[];
   currency: string;
+  themeColorHex?: string;
 }
 
 const StatCard = ({ title, value, icon: Icon, color, subtitle }: any) => (
@@ -23,7 +24,7 @@ const StatCard = ({ title, value, icon: Icon, color, subtitle }: any) => (
   </Card>
 );
 
-const Dashboard: React.FC<DashboardProps> = ({ sales, products, currency }) => {
+const Dashboard: React.FC<DashboardProps> = ({ sales, products, currency, themeColorHex = '#3b82f6' }) => {
   const stats = useMemo(() => {
     const totalRevenue = sales.reduce((acc, sale) => acc + sale.totalAmount, 0);
     const totalOrders = sales.length;
@@ -63,7 +64,7 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, products, currency }) => {
           title="Total Orders" 
           value={stats.totalOrders} 
           icon={TrendingUp} 
-          color="bg-blue-500"
+          color="bg-primary-500"
         />
         <StatCard 
           title="Products in Stock" 
@@ -92,7 +93,7 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, products, currency }) => {
                 <Tooltip 
                   contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }}
                 />
-                <Line type="monotone" dataKey="amount" stroke="#3b82f6" strokeWidth={2} activeDot={{ r: 8 }} />
+                <Line type="monotone" dataKey="amount" stroke={themeColorHex} strokeWidth={2} activeDot={{ r: 8 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>

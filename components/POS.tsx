@@ -157,7 +157,7 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
           <input
             type="text"
             placeholder="Search product..."
-            className="w-full pl-10 pr-4 py-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-blue-500 outline-none shadow-sm"
+            className="w-full pl-10 pr-4 py-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-primary-500 outline-none shadow-sm"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -168,14 +168,14 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
             <button
               key={product.id}
               onClick={() => addToCart(product)}
-              className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-blue-300 transition-all text-left flex flex-col justify-between group h-32 md:h-auto"
+              className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-primary-300 transition-all text-left flex flex-col justify-between group h-32 md:h-auto"
             >
               <div>
                 <h4 className="font-semibold text-slate-800 dark:text-slate-100 line-clamp-2 text-sm md:text-base">{product.name}</h4>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{product.category}</p>
               </div>
               <div className="mt-2 flex justify-between items-end">
-                <span className="font-bold text-blue-600 dark:text-blue-400 text-sm md:text-base">{currency}{product.price.toFixed(2)}</span>
+                <span className="font-bold text-primary-600 dark:text-primary-400 text-sm md:text-base">{currency}{product.price.toFixed(2)}</span>
                 <span className="text-[10px] md:text-xs bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded text-slate-600 dark:text-slate-300">Qty: {product.stock}</span>
               </div>
             </button>
@@ -195,7 +195,7 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
             <h2 className="font-bold text-lg text-slate-800 dark:text-white">Current Order</h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">{cart.length} Items</p>
           </div>
-          <div className="font-bold text-xl text-blue-600 dark:text-blue-400">{currency}{cartTotal.toFixed(2)}</div>
+          <div className="font-bold text-xl text-primary-600 dark:text-primary-400">{currency}{cartTotal.toFixed(2)}</div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-white dark:bg-slate-800">
@@ -207,9 +207,9 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
               </div>
               <div className="flex items-center gap-2">
                 <div className="flex items-center bg-slate-100 dark:bg-slate-600 rounded-lg">
-                  <button onClick={() => updateQuantity(item.id, -1)} className="p-1 hover:text-blue-600 dark:hover:text-blue-300 text-slate-600 dark:text-slate-300"><Minus size={14} /></button>
+                  <button onClick={() => updateQuantity(item.id, -1)} className="p-1 hover:text-primary-600 dark:hover:text-primary-300 text-slate-600 dark:text-slate-300"><Minus size={14} /></button>
                   <span className="w-6 text-center text-sm font-medium text-slate-800 dark:text-white">{item.quantity}</span>
-                  <button onClick={() => updateQuantity(item.id, 1)} className="p-1 hover:text-blue-600 dark:hover:text-blue-300 text-slate-600 dark:text-slate-300"><Plus size={14} /></button>
+                  <button onClick={() => updateQuantity(item.id, 1)} className="p-1 hover:text-primary-600 dark:hover:text-primary-300 text-slate-600 dark:text-slate-300"><Plus size={14} /></button>
                 </div>
                 <button onClick={() => removeFromCart(item.id)} className="text-red-400 hover:text-red-600">
                   <Trash2 size={16} />

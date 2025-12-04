@@ -33,7 +33,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, onLogout, 
             {shop?.logoUrl ? (
               <img src={shop.logoUrl} alt="Logo" className="w-10 h-10 rounded-lg object-contain bg-white" />
             ) : (
-              <div className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center text-lg font-bold">
+              <div className="w-10 h-10 rounded-lg bg-primary-600 flex items-center justify-center text-lg font-bold">
                 {shop?.name.charAt(0)}
               </div>
             )}
@@ -55,7 +55,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, onLogout, 
                 onClick={() => onChangeView(item.id as ViewState)}
                 className={`flex items-center w-full px-3 py-3 rounded-lg text-sm font-medium transition-all duration-200 relative ${
                   isActive 
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50' 
+                    ? 'bg-primary-600 text-white shadow-lg shadow-primary-900/50' 
                     : 'text-slate-400 hover:text-white hover:bg-slate-800'
                 }`}
               >
@@ -102,7 +102,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, onLogout, 
                key={item.id}
                onClick={() => onChangeView(item.id as ViewState)}
                className={`flex flex-col items-center justify-center p-2 rounded-lg w-full transition-colors relative ${
-                 isActive ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'
+                 isActive ? 'text-primary-600 dark:text-primary-400' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'
                }`}
              >
                <item.icon size={20} className={isActive ? 'fill-current opacity-20' : ''} />
@@ -115,7 +115,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, onLogout, 
         })}
         <button
           onClick={() => onChangeView('settings')}
-          className={`flex flex-col items-center justify-center p-2 rounded-lg w-full transition-colors ${currentView === 'settings' ? 'text-blue-600' : 'text-slate-400'}`}
+          className={`flex flex-col items-center justify-center p-2 rounded-lg w-full transition-colors ${currentView === 'settings' ? 'text-primary-600' : 'text-slate-400'}`}
         >
           <Settings size={20} />
            <span className="text-[10px] font-medium mt-1">Set</span>

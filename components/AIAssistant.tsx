@@ -38,7 +38,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ products, sales }) => {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center gap-3 mb-6">
-        <div className="p-3 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg shadow-lg">
+        <div className="p-3 bg-gradient-to-br from-primary-500 to-purple-600 rounded-lg shadow-lg">
           <Sparkles className="text-white" size={24} />
         </div>
         <div>
@@ -68,7 +68,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ products, sales }) => {
 
           {loading && (
             <div className="flex flex-col items-center justify-center py-12 space-y-4">
-              <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+              <div className="w-8 h-8 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin"></div>
               <p className="text-slate-500 animate-pulse">Analyzing your business data...</p>
             </div>
           )}
@@ -83,7 +83,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ products, sales }) => {
         <form onSubmit={handleAsk} className="relative">
           <input
             type="text"
-            className="w-full pl-4 pr-14 py-4 bg-white border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+            className="w-full pl-4 pr-14 py-4 bg-white border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-primary-500 outline-none"
             placeholder="Ask anything about your shop performance..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -91,7 +91,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ products, sales }) => {
           <button 
             type="submit"
             disabled={loading || !query}
-            className="absolute right-2 top-2 p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            className="absolute right-2 top-2 p-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
           >
             <Send size={20} />
           </button>

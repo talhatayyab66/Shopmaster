@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { User, Shop, UserRole } from '../types';
 import { Card, Button, Input } from './ui/LayoutComponents';
 import { updateShop, uploadShopLogo } from '../services/storageService';
-import { Moon, Sun, Upload, Save, Store } from 'lucide-react';
+import { Moon, Sun, Upload, Save, Store, Palette, Check } from 'lucide-react';
 
 interface SettingsProps {
   user: User;
@@ -10,9 +10,19 @@ interface SettingsProps {
   refreshShop: () => void;
   isDarkMode: boolean;
   toggleTheme: () => void;
+  themeColor: string;
+  setThemeColor: (color: string) => void;
 }
 
-const Settings: React.FC<SettingsProps> = ({ user, shop, refreshShop, isDarkMode, toggleTheme }) => {
+const Settings: React.FC<SettingsProps> = ({ 
+  user, 
+  shop, 
+  refreshShop, 
+  isDarkMode, 
+  toggleTheme,
+  themeColor,
+  setThemeColor
+}) => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: shop.name,
@@ -20,6 +30,14 @@ const Settings: React.FC<SettingsProps> = ({ user, shop, refreshShop, isDarkMode
     currency: shop.currency || '$'
   });
   const [logoFile, setLogoFile] = useState<File | null>(null);
+
+  const colors = [
+    { id: 'blue', label: 'Blue', class: 'bg-blue-600' },
+    { id: 'purple', label: 'Purple', class: 'bg-purple-600' },
+    { id: 'emerald', label: 'Emerald', class: 'bg-emerald-600' },
+    { id: 'rose', label: 'Rose', class: 'bg-rose-600' },
+    { id: 'orange', label: 'Orange', class: 'bg-orange-600' },
+  ];
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,14 +72,16 @@ const Settings: React.FC<SettingsProps> = ({ user, shop, refreshShop, isDarkMode
 
       {/* App Preferences */}
       <Card>
-        <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4">App Preferences</h3>
-        <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-6">App Appearance</h3>
+        
+        {/* Dark Mode Toggle */}
+        <div className="flex items-center justify-between mb-8 pb-8 border-b border-slate-100 dark:border-slate-700">
           <div className="flex items-center gap-3">
             <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-slate-700' : 'bg-orange-100'}`}>
               {isDarkMode ? <Moon size={20} className="text-slate-200" /> : <Sun size={20} className="text-orange-500" />}
             </div>
             <div>
-              <p className="font-medium text-slate-900 dark:text-white">Appearance</p>
+              <p className="font-medium text-slate-900 dark:text-white">Theme Mode</p>
               <p className="text-sm text-slate-500 dark:text-slate-400">Switch between light and dark themes</p>
             </div>
           </div>
@@ -69,13 +89,38 @@ const Settings: React.FC<SettingsProps> = ({ user, shop, refreshShop, isDarkMode
             {isDarkMode ? 'Switch to Light' : 'Switch to Dark'}
           </Button>
         </div>
+
+        {/* Color Theme Selector */}
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary-100 dark:bg-primary-900/30">
+              <Palette size={20} className="text-primary-600 dark:text-primary-400" />
+            </div>
+            <div>
+              <p className="font-medium text-slate-900 dark:text-white">Accent Color</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Select your preferred color scheme</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            {colors.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => setThemeColor(c.id)}
+                className={`w-8 h-8 rounded-full ${c.class} flex items-center justify-center transition-transform hover:scale-110 ring-2 ring-offset-2 dark:ring-offset-slate-800 ${themeColor === c.id ? 'ring-slate-400 dark:ring-slate-400 scale-110' : 'ring-transparent'}`}
+                title={c.label}
+              >
+                {themeColor === c.id && <Check size={14} className="text-white" />}
+              </button>
+            ))}
+          </div>
+        </div>
       </Card>
 
       {/* Shop Settings - Admin Only */}
       {user.role === UserRole.ADMIN && (
         <Card>
           <div className="flex items-center gap-2 mb-6">
-            <Store className="text-blue-600" size={24} />
+            <Store className="text-primary-600" size={24} />
             <h3 className="text-lg font-semibold text-slate-800 dark:text-white">Shop Configuration</h3>
           </div>
           
@@ -92,7 +137,7 @@ const Settings: React.FC<SettingsProps> = ({ user, shop, refreshShop, isDarkMode
                 <select 
                   value={formData.currency}
                   onChange={e => setFormData({ ...formData, currency: e.target.value })}
-                  className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-blue-500 outline-none text-slate-900 dark:text-white"
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-primary-500 outline-none text-slate-900 dark:text-white"
                 >
                   <option value="$">USD ($)</option>
                   <option value="€">EUR (€)</option>

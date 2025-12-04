@@ -23,6 +23,75 @@ import {
 } from './services/storageService';
 import { supabase } from './services/supabaseClient';
 
+// Theme Color Palettes (RGB values for Tailwind)
+const THEMES: Record<string, any> = {
+  blue: {
+    50: '239 246 255',
+    100: '219 234 254',
+    200: '191 219 254',
+    300: '147 197 253',
+    400: '96 165 250',
+    500: '59 130 246',
+    600: '37 99 235',
+    700: '29 78 216',
+    800: '30 64 175',
+    900: '30 58 138',
+    hex: '#2563eb' // 600 shade for charts
+  },
+  purple: {
+    50: '250 245 255',
+    100: '243 232 255',
+    200: '233 213 255',
+    300: '216 180 254',
+    400: '192 132 252',
+    500: '168 85 247',
+    600: '147 51 234',
+    700: '126 34 206',
+    800: '107 33 168',
+    900: '88 28 135',
+    hex: '#9333ea'
+  },
+  emerald: {
+    50: '236 253 245',
+    100: '209 250 229',
+    200: '167 243 208',
+    300: '110 231 183',
+    400: '52 211 153',
+    500: '16 185 129',
+    600: '5 150 105',
+    700: '4 120 87',
+    800: '6 95 70',
+    900: '6 78 59',
+    hex: '#059669'
+  },
+  rose: {
+    50: '255 241 242',
+    100: '255 228 230',
+    200: '254 205 211',
+    300: '253 164 175',
+    400: '251 113 133',
+    500: '244 63 94',
+    600: '225 29 72',
+    700: '190 18 60',
+    800: '159 18 57',
+    900: '136 19 55',
+    hex: '#e11d48'
+  },
+  orange: {
+    50: '255 247 237',
+    100: '255 237 213',
+    200: '254 215 170',
+    300: '253 186 116',
+    400: '251 146 60',
+    500: '249 115 22',
+    600: '234 88 12',
+    700: '194 65 12',
+    800: '154 52 18',
+    900: '124 45 18',
+    hex: '#ea580c'
+  }
+};
+
 const App = () => {
   // Simple Manual Routing Check
   const [pathname, setPathname] = useState(window.location.pathname);
@@ -48,6 +117,9 @@ const App = () => {
   const [isDarkMode, setIsDarkMode] = useState(() => {
     return localStorage.getItem('theme') === 'dark';
   });
+  const [themeColor, setThemeColor] = useState(() => {
+    return localStorage.getItem('themeColor') || 'blue';
+  });
 
   // Data State
   const [products, setProducts] = useState<Product[]>([]);
@@ -60,6 +132,7 @@ const App = () => {
 
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
 
+  // Apply Dark Mode
   useEffect(() => {
     if (isDarkMode) {
       document.documentElement.classList.add('dark');
@@ -69,6 +142,21 @@ const App = () => {
       localStorage.setItem('theme', 'light');
     }
   }, [isDarkMode]);
+
+  // Apply Theme Color
+  useEffect(() => {
+    const palette = THEMES[themeColor] || THEMES['blue'];
+    const root = document.documentElement;
+    
+    // Set CSS variables for Tailwind primary color
+    Object.keys(palette).forEach(key => {
+      if (key !== 'hex') {
+        root.style.setProperty(`--primary-${key}`, palette[key]);
+      }
+    });
+
+    localStorage.setItem('themeColor', themeColor);
+  }, [themeColor]);
 
   // Restore session for Supabase Auth Users (Admins)
   useEffect(() => {
@@ -262,7 +350,12 @@ const App = () => {
     switch (currentView) {
       case 'dashboard':
         return user.role === UserRole.ADMIN ? (
-          <Dashboard sales={sales} products={products} currency={shop.currency || '$'} />
+          <Dashboard 
+            sales={sales} 
+            products={products} 
+            currency={shop.currency || '$'} 
+            themeColorHex={THEMES[themeColor].hex}
+          />
         ) : (
           <div className="text-center mt-20 text-slate-500">Access Restricted</div>
         );
@@ -306,10 +399,19 @@ const App = () => {
             refreshShop={refreshData} 
             isDarkMode={isDarkMode}
             toggleTheme={toggleTheme}
+            themeColor={themeColor}
+            setThemeColor={setThemeColor}
           />
         );
       default:
-        return <Dashboard sales={sales} products={products} currency={shop.currency || '$'} />;
+        return (
+          <Dashboard 
+            sales={sales} 
+            products={products} 
+            currency={shop.currency || '$'} 
+            themeColorHex={THEMES[themeColor].hex}
+          />
+        );
     }
   };
 
