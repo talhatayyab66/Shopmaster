@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Image as ImageIcon, Paperclip, Loader2 } from 'lucide-react';
+import { Send, Image as ImageIcon, Paperclip, Loader2, Trash2 } from 'lucide-react';
 import { Message, User } from '../types';
-import { getChatMessages, sendChatMessage, subscribeToChat } from '../services/storageService';
+import { getChatMessages, sendChatMessage, subscribeToChat, deleteChatMessage } from '../services/storageService';
 import { Card } from './ui/LayoutComponents';
 
 interface ShopChatProps {
@@ -35,14 +35,19 @@ const ShopChat: React.FC<ShopChatProps> = ({ user, shopId }) => {
     fetchMessages();
 
     // Subscribe to realtime updates
-    const subscription = subscribeToChat(shopId, (msg) => {
-      setMessages((prev) => {
-        // Prevent duplicate messages if optimistic update was used
-        if (prev.some(p => p.id === msg.id)) return prev;
-        const updated = [...prev, msg];
-        // Sort by time to be safe
-        return updated.sort((a, b) => a.createdAt - b.createdAt);
-      });
+    const subscription = subscribeToChat(shopId, {
+      onInsert: (msg) => {
+        setMessages((prev) => {
+          // Prevent duplicate messages if optimistic update was used
+          if (prev.some(p => p.id === msg.id)) return prev;
+          const updated = [...prev, msg];
+          // Sort by time to be safe
+          return updated.sort((a, b) => a.createdAt - b.createdAt);
+        });
+      },
+      onDelete: (id) => {
+        setMessages((prev) => prev.filter(m => m.id !== id));
+      }
     });
 
     return () => {
@@ -80,6 +85,16 @@ const ShopChat: React.FC<ShopChatProps> = ({ user, shopId }) => {
       alert(`Failed to send message: ${error.message}`);
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleDelete = async (messageId: string) => {
+    if (!window.confirm("Are you sure you want to delete this message?")) return;
+    try {
+      await deleteChatMessage(messageId);
+    } catch (error: any) {
+      console.error("Failed to delete message", error);
+      alert("Failed to delete message");
     }
   };
 
@@ -128,11 +143,22 @@ const ShopChat: React.FC<ShopChatProps> = ({ user, shopId }) => {
               <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[85%] md:max-w-[70%] flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                   <span className="text-[10px] text-slate-400 mb-1 px-1">{msg.userName}</span>
-                  <div className={`p-3 rounded-2xl shadow-sm ${
+                  <div className={`relative group p-3 rounded-2xl shadow-sm ${
                     isMe 
                       ? 'bg-blue-600 text-white rounded-tr-none' 
                       : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-tl-none'
                   }`}>
+                    {/* Delete Button */}
+                    {isMe && (
+                      <button
+                        onClick={() => handleDelete(msg.id)}
+                        className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:bg-red-600 focus:opacity-100"
+                        title="Delete message"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    )}
+
                     {msg.imageUrl && (
                       <div className="mb-2 rounded-lg overflow-hidden bg-black/10">
                         <img 

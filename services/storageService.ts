@@ -57,8 +57,6 @@ export const createShop = async (shopName: string, adminData: { fullName: string
   const shopId = generateId();
   
   // If session is null, email confirmation is required/enabled.
-  // We CANNOT insert into public tables yet because we are not authenticated (RLS would fail).
-  // The records will be created in loginUser upon first successful login using the metadata.
   const confirmationRequired = !authData.session;
 
   if (confirmationRequired) {
@@ -191,6 +189,7 @@ export const loginUser = async (identifier: string, password: string): Promise<{
     });
 
     if (error) {
+      // Supabase specific errors (e.g. Email not confirmed, Invalid login)
       throw new Error(error.message);
     }
 
@@ -198,68 +197,89 @@ export const loginUser = async (identifier: string, password: string): Promise<{
       userId = data.user.id;
 
       // Check if the public user profile exists
-      // If the user signed up with email confirmation, the public profile might not exist yet (RLS blocked it)
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('*')
         .eq('id', userId)
         .single();
 
-      if (!userData && data.user.user_metadata?.shop_name) {
-        // --- DEFERRED CREATION LOGIC ---
-        // Recover the missing Shop and User records using metadata
-        console.log("Creating missing profile/shop for verified user...");
+      // If user exists in Auth but NOT in public 'users' table
+      if (!userData) {
+        console.log("User authenticated in Auth but missing public profile. Attempting deferred creation.");
         const metadata = data.user.user_metadata;
-        const shopId = generateId();
 
-        const newShop: Shop = {
-          id: shopId,
-          name: metadata.shop_name,
-          ownerId: userId,
-          createdAt: Date.now(),
-          currency: '$',
-        };
+        // Check if we have the necessary metadata to create the profile
+        if (metadata && metadata.shop_name) {
+          try {
+            const shopId = generateId();
 
-        const newUser: User = {
-          id: userId,
-          username: metadata.username,
-          passwordHash: 'SUPABASE_AUTH',
-          fullName: metadata.full_name,
-          email: data.user.email,
-          role: UserRole.ADMIN,
-          shopId: shopId
-        };
+            const newShop: Shop = {
+              id: shopId,
+              name: metadata.shop_name,
+              ownerId: userId,
+              createdAt: Date.now(),
+              currency: '$',
+            };
 
-        // Insert Shop
-        const { error: shopInsertError } = await supabase.from('shops').insert({
-          id: newShop.id,
-          name: newShop.name,
-          owner_id: newShop.ownerId,
-          created_at: newShop.createdAt,
-          currency: newShop.currency
-        });
+            const newUser: User = {
+              id: userId,
+              username: metadata.username || identifier.split('@')[0],
+              passwordHash: 'SUPABASE_AUTH',
+              fullName: metadata.full_name || 'Admin',
+              email: data.user.email,
+              role: UserRole.ADMIN,
+              shopId: shopId
+            };
 
-        if (shopInsertError) throw new Error("Failed to initialize shop: " + shopInsertError.message);
+            // Insert Shop
+            const { error: shopInsertError } = await supabase.from('shops').insert({
+              id: newShop.id,
+              name: newShop.name,
+              owner_id: newShop.ownerId,
+              created_at: newShop.createdAt,
+              currency: newShop.currency
+            });
 
-        // Insert User
-        const { error: userInsertError } = await supabase.from('users').insert({
-          id: newUser.id,
-          username: newUser.username,
-          email: newUser.email,
-          role: newUser.role,
-          shop_id: newUser.shopId,
-          password_hash: newUser.passwordHash,
-          full_name: newUser.fullName
-        });
+            if (shopInsertError) {
+              console.error("Shop Insert Error:", shopInsertError);
+              throw new Error("Failed to initialize shop: " + shopInsertError.message);
+            }
 
-        if (userInsertError) throw new Error("Failed to initialize user profile: " + userInsertError.message);
+            // Insert User
+            const { error: userInsertError } = await supabase.from('users').insert({
+              id: newUser.id,
+              username: newUser.username,
+              email: newUser.email,
+              role: newUser.role,
+              shop_id: newUser.shopId,
+              password_hash: newUser.passwordHash,
+              full_name: newUser.fullName
+            });
 
-        return { user: newUser, shop: newShop };
+            if (userInsertError) {
+               console.error("User Insert Error:", userInsertError);
+               throw new Error("Failed to initialize user profile: " + userInsertError.message);
+            }
+
+            console.log("Deferred creation successful");
+            return { user: newUser, shop: newShop };
+
+          } catch (creationError: any) {
+            console.error("Deferred creation failed:", creationError);
+            throw new Error(creationError.message);
+          }
+        } else {
+           // User authenticated but no profile and NO METADATA
+           console.error("Missing metadata for new user:", data.user);
+           throw new Error("Account exists, but profile setup is incomplete. Please contact support or try creating the shop again.");
+        }
       }
+      
+      // If userData exists, we fall through to the fetch logic below to get Shop details
     }
   }
 
-  // Case 2: Staff Login (or fallback if Admin flow didn't return early)
+  // Case 2: Staff Login (or fallback if Admin flow continued)
   if (!userId) {
     const { data: staffData, error: staffError } = await supabase
       .from('users')
@@ -275,14 +295,22 @@ export const loginUser = async (identifier: string, password: string): Promise<{
 
   if (!userId) return null;
 
-  // Final Fetch for existing users
+  // Final Fetch for existing users (Admin or Staff)
   const { data: userData, error: userError } = await supabase
     .from('users')
     .select('*')
     .eq('id', userId)
     .single();
   
-  if (userError || !userData) return null;
+  if (userError || !userData) {
+      if (isEmail) {
+          // If we got here via Email login, it means we found the Auth user but failed to find the Public profile
+          // AND deferred creation didn't run (likely because userData was truthy? No, if userData is null we handled it above).
+          // This block catches if the fetch failed for some other reason.
+          throw new Error("User profile not found in database.");
+      }
+      return null;
+  }
 
   const { data: shopData, error: shopError } = await supabase
     .from('shops')
@@ -290,7 +318,9 @@ export const loginUser = async (identifier: string, password: string): Promise<{
     .eq('id', userData.shop_id)
     .single();
 
-  if (shopError || !shopData) return null;
+  if (shopError || !shopData) {
+      throw new Error("Shop data not found.");
+  }
 
   const user: User = {
     id: userData.id,
@@ -528,29 +558,48 @@ export const sendChatMessage = async (
   if (error) throw new Error(error.message);
 };
 
-export const subscribeToChat = (shopId: string, callback: (msg: Message) => void) => {
+export const deleteChatMessage = async (messageId: string) => {
+  const { error } = await supabase
+    .from('chat_messages')
+    .delete()
+    .eq('id', messageId);
+
+  if (error) throw new Error(error.message);
+};
+
+export const subscribeToChat = (
+  shopId: string, 
+  callbacks: { 
+    onInsert: (msg: Message) => void, 
+    onDelete: (id: string) => void 
+  }
+) => {
   return supabase
     .channel('chat-room-' + shopId)
     .on(
       'postgres_changes',
       { 
-        event: 'INSERT', 
+        event: '*', 
         schema: 'public', 
         table: 'chat_messages',
         filter: `shop_id=eq.${shopId}`
       },
       (payload: any) => {
-        const m = payload.new;
-        const message: Message = {
-          id: m.id,
-          shopId: m.shop_id,
-          userId: m.user_id,
-          userName: m.user_name,
-          content: m.content,
-          imageUrl: m.image_url,
-          createdAt: Number(m.created_at)
-        };
-        callback(message);
+        if (payload.eventType === 'INSERT') {
+          const m = payload.new;
+          const message: Message = {
+            id: m.id,
+            shopId: m.shop_id,
+            userId: m.user_id,
+            userName: m.user_name,
+            content: m.content,
+            imageUrl: m.image_url,
+            createdAt: Number(m.created_at)
+          };
+          callbacks.onInsert(message);
+        } else if (payload.eventType === 'DELETE') {
+          callbacks.onDelete(payload.old.id);
+        }
       }
     )
     .subscribe();
