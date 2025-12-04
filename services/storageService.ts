@@ -181,7 +181,7 @@ export const loginUser = async (identifier: string, password: string): Promise<{
   let userId: string | null = null;
   const isEmail = identifier.includes('@');
 
-  // Case 1: Supabase Auth (Admin/Owner)
+  // Case 1: Supabase Auth (Admin/Owner) with Email
   if (isEmail) {
     const { data, error } = await supabase.auth.signInWithPassword({
       email: identifier,
@@ -274,22 +274,37 @@ export const loginUser = async (identifier: string, password: string): Promise<{
            throw new Error("Account exists, but profile setup is incomplete. Please contact support or try creating the shop again.");
         }
       }
-      
-      // If userData exists, we fall through to the fetch logic below to get Shop details
     }
   }
 
-  // Case 2: Staff Login (or fallback if Admin flow continued)
-  if (!userId) {
-    const { data: staffData, error: staffError } = await supabase
+  // Case 2: Username Login (Staff OR Admin fallback)
+  if (!userId && !isEmail) {
+    // 1. Find user by username
+    const { data: userByUsername, error: usernameError } = await supabase
       .from('users')
       .select('*')
       .eq('username', identifier)
-      .eq('password_hash', password)
       .single();
 
-    if (staffData && !staffError) {
-      userId = staffData.id;
+    if (userByUsername) {
+      // 2a. If Admin, we must authenticate via Email/Password through Supabase Auth
+      if (userByUsername.role === UserRole.ADMIN) {
+        if (userByUsername.email) {
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email: userByUsername.email,
+            password: password
+          });
+          
+          if (!error && data.user) {
+            userId = data.user.id;
+          }
+          // If error, userId remains null, function returns null, triggering invalid credentials
+        }
+      } 
+      // 2b. If Sales/Staff, verify simple password hash
+      else if (userByUsername.password_hash === password) {
+        userId = userByUsername.id;
+      }
     }
   }
 
@@ -304,9 +319,6 @@ export const loginUser = async (identifier: string, password: string): Promise<{
   
   if (userError || !userData) {
       if (isEmail) {
-          // If we got here via Email login, it means we found the Auth user but failed to find the Public profile
-          // AND deferred creation didn't run (likely because userData was truthy? No, if userData is null we handled it above).
-          // This block catches if the fetch failed for some other reason.
           throw new Error("User profile not found in database.");
       }
       return null;

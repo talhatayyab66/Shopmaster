@@ -36,7 +36,8 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
       if (result) {
         onLogin(result.user, result.shop);
       } else {
-        setError('Invalid credentials or user not found.');
+        // If result is null, it means no user found or auth failed silently (for staff/username flow)
+        setError('Invalid credentials or user not found. If you are a new Shop Admin, please try logging in with your Email address for the first time.');
       }
     } catch (err: any) {
       // This will catch "Email not confirmed" errors from Supabase
@@ -143,6 +144,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                 value={loginData.identifier}
                 onChange={e => setLoginData({...loginData, identifier: e.target.value})}
                 required
+                placeholder="Enter email or username"
               />
               <Input
                 label="Password"
@@ -150,6 +152,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                 value={loginData.password}
                 onChange={e => setLoginData({...loginData, password: e.target.value})}
                 required
+                placeholder="Enter password"
               />
               <Button type="submit" className="w-full py-3" disabled={loading}>
                 {loading ? 'Authenticating...' : 'Access Shop'}
