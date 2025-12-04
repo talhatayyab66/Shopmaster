@@ -16,7 +16,8 @@ import {
   getSales, 
   createSale, 
   getUsersByShop,
-  logoutUser
+  logoutUser,
+  subscribeToShopUpdates
 } from './services/storageService';
 import { supabase } from './services/supabaseClient';
 
@@ -95,7 +96,6 @@ const App = () => {
   }, []);
 
   // Fetch Data when user/shop changes
-  // FIX: Only depend on IDs to prevent infinite loops when shop object reference changes
   useEffect(() => {
     if (user?.id && shop?.id) {
       refreshData();
@@ -107,6 +107,22 @@ const App = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, shop?.id]); 
+
+  // Real-time listener for Shop Settings
+  useEffect(() => {
+    if (!shop?.id) return;
+
+    const subscription = subscribeToShopUpdates(shop.id, (updates) => {
+      setShop(prev => {
+        if (!prev) return null;
+        return { ...prev, ...updates };
+      });
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [shop?.id]);
 
   const refreshData = async () => {
     if (!shop || !user) return;
@@ -126,6 +142,8 @@ const App = () => {
       }
 
       // Check for Shop updates (Settings changes) without triggering infinite loop
+      // NOTE: With the new Realtime subscription, this polling is a fallback 
+      // but good to keep for initial loads or if socket disconnects.
       const { data: latestShop } = await supabase
         .from('shops')
         .select('*')
@@ -133,7 +151,7 @@ const App = () => {
         .single();
       
       if (latestShop) {
-        // Only update state if data actually changed
+        // Only update state if data actually changed significantly
         if (
           latestShop.name !== shop.name ||
           latestShop.address !== shop.address ||

@@ -118,8 +118,38 @@ export const updateShop = async (shop: Partial<Shop> & { id: string }) => {
   if (error) throw new Error(error.message);
 };
 
+export const subscribeToShopUpdates = (shopId: string, callback: (shopUpdates: Partial<Shop>) => void) => {
+  return supabase
+    .channel('shop-updates-' + shopId)
+    .on(
+      'postgres_changes',
+      { 
+        event: 'UPDATE', 
+        schema: 'public', 
+        table: 'shops',
+        filter: `id=eq.${shopId}`
+      },
+      (payload: any) => {
+        const newData = payload.new;
+        // Map snake_case DB fields to camelCase Shop interface
+        const updates: Partial<Shop> = {
+          name: newData.name,
+          address: newData.address,
+          currency: newData.currency,
+          logoUrl: newData.logo_url,
+          // We can add other fields if needed, but these are the main settings
+        };
+        callback(updates);
+      }
+    )
+    .subscribe();
+};
+
 export const uploadShopLogo = async (shopId: string, file: File): Promise<string> => {
-  const fileExt = file.name.split('.').pop();
+  // Sanitize file extension
+  const fileExt = file.name.split('.').pop()?.toLowerCase() || 'png';
+  // Use a consistent name to avoid pile up, or timestamped if you want history. 
+  // Using timestamp ensures cache busting in browsers.
   const fileName = `logo_${Date.now()}.${fileExt}`;
   const filePath = `${shopId}/${fileName}`;
 
@@ -127,7 +157,10 @@ export const uploadShopLogo = async (shopId: string, file: File): Promise<string
     .from('shop-assets')
     .upload(filePath, file, { upsert: true });
 
-  if (uploadError) throw new Error('Logo upload failed: ' + uploadError.message);
+  if (uploadError) {
+    console.error("Shop Logo Upload Error:", uploadError);
+    throw new Error('Logo upload failed: ' + uploadError.message);
+  }
 
   const { data: { publicUrl } } = supabase.storage
     .from('shop-assets')
