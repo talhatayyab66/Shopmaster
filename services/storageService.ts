@@ -53,6 +53,8 @@ export const createShop = async (shopName: string, adminData: { fullName: string
 
   const userId = authData.user.id;
   const shopId = generateId();
+  // If session is null, email confirmation is required/enabled
+  const confirmationRequired = !authData.session;
 
   // 2. Create Shop
   const newShop: Shop = {
@@ -100,7 +102,7 @@ export const createShop = async (shopName: string, adminData: { fullName: string
     throw new Error(`User profile creation failed: ${userError.message}`);
   }
 
-  return { shop: newShop, user: adminUser };
+  return { shop: newShop, user: adminUser, confirmationRequired };
 };
 
 export const updateShop = async (shop: Partial<Shop> & { id: string }) => {
@@ -137,7 +139,6 @@ export const subscribeToShopUpdates = (shopId: string, callback: (shopUpdates: P
           address: newData.address,
           currency: newData.currency,
           logoUrl: newData.logo_url,
-          // We can add other fields if needed, but these are the main settings
         };
         callback(updates);
       }
@@ -146,10 +147,7 @@ export const subscribeToShopUpdates = (shopId: string, callback: (shopUpdates: P
 };
 
 export const uploadShopLogo = async (shopId: string, file: File): Promise<string> => {
-  // Sanitize file extension
   const fileExt = file.name.split('.').pop()?.toLowerCase() || 'png';
-  // Use a consistent name to avoid pile up, or timestamped if you want history. 
-  // Using timestamp ensures cache busting in browsers.
   const fileName = `logo_${Date.now()}.${fileExt}`;
   const filePath = `${shopId}/${fileName}`;
 
@@ -179,12 +177,18 @@ export const loginUser = async (identifier: string, password: string): Promise<{
       password: password
     });
 
-    if (!error && data.user) {
+    // If Supabase returns an error (e.g. Email not confirmed), throw it so UI can display it
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    if (data.user) {
       userId = data.user.id;
     }
   }
 
   if (!userId) {
+    // Try staff login if not an email login or if email login failed silently (unlikely with throw above)
     const { data: staffData, error: staffError } = await supabase
       .from('users')
       .select('*')
@@ -418,12 +422,9 @@ export const sendChatMessage = async (
   let imageUrl = '';
 
   if (imageFile) {
-    // Generate clean safe filename
     const fileExt = imageFile.name.split('.').pop()?.toLowerCase() || 'png';
     const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
     const filePath = `${shopId}/${fileName}`;
-
-    console.log("Uploading to:", filePath);
 
     const { error: uploadError } = await supabase.storage
       .from('chat-images')
@@ -431,7 +432,7 @@ export const sendChatMessage = async (
 
     if (uploadError) {
       console.error("Upload Error:", uploadError);
-      throw new Error(`Image upload failed: ${uploadError.message}. Check storage policies for 'chat-images'.`);
+      throw new Error(`Image upload failed: ${uploadError.message}. Check storage policies.`);
     }
 
     const { data: { publicUrl } } = supabase.storage

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { User, Shop } from '../types';
 import { Card, Button, Input } from './ui/LayoutComponents';
 import { createShop, loginUser } from '../services/storageService';
-import { Store } from 'lucide-react';
+import { Store, MailCheck, ArrowLeft } from 'lucide-react';
 
 interface AuthProps {
   onLogin: (user: User, shop: Shop) => void;
@@ -10,6 +10,7 @@ interface AuthProps {
 
 const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [verificationSent, setVerificationSent] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -38,7 +39,8 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
         setError('Invalid credentials or user not found.');
       }
     } catch (err: any) {
-      setError('Login failed: ' + (err.message || 'Network error'));
+      // This will catch "Email not confirmed" errors from Supabase
+      setError(err.message || 'Login failed');
     } finally {
       setLoading(false);
     }
@@ -49,19 +51,57 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     setError('');
     setLoading(true);
     try {
-      const { shop, user } = await createShop(regData.shopName, {
+      const { shop, user, confirmationRequired } = await createShop(regData.shopName, {
         fullName: regData.adminName,
         username: regData.username,
         email: regData.email,
         password: regData.password
       });
-      onLogin(user, shop);
+
+      if (confirmationRequired) {
+        setVerificationSent(true);
+      } else {
+        // If no email confirmation required (e.g. dev mode), login immediately
+        onLogin(user, shop);
+      }
     } catch (err: any) {
       setError(err.message || 'Registration failed');
     } finally {
       setLoading(false);
     }
   };
+
+  if (verificationSent) {
+    return (
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+        <div className="max-w-md w-full">
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold text-slate-900">ShopMaster AI</h1>
+          </div>
+          <Card className="shadow-xl border-0 p-8 text-center">
+            <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
+               <MailCheck size={32} />
+            </div>
+            <h2 className="text-2xl font-bold text-slate-900 mb-2">Check Your Email</h2>
+            <p className="text-slate-600 mb-6 leading-relaxed">
+              We have sent a confirmation link to <br/>
+              <span className="font-semibold text-slate-800">{regData.email}</span>.
+            </p>
+            <p className="text-sm text-slate-500 mb-8">
+              Please check your inbox and click the link to verify your account. Once verified, you can log in to your shop.
+            </p>
+            <Button 
+              className="w-full flex items-center justify-center gap-2" 
+              onClick={() => { setVerificationSent(false); setMode('login'); }}
+            >
+              <ArrowLeft size={18} />
+              Back to Login
+            </Button>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
@@ -91,7 +131,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
           </div>
 
           {error && (
-            <div className="mb-4 p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100">
+            <div className="mb-4 p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100 animate-[shake_0.5s_ease-in-out]">
               {error}
             </div>
           )}
