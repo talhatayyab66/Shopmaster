@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { User, Shop, UserRole } from '../types';
 import { Card, Button, Input } from './ui/LayoutComponents';
 import { updateShop, uploadShopLogo } from '../services/storageService';
-import { Moon, Sun, Upload, Save, Store, Palette, Check } from 'lucide-react';
+import { Moon, Sun, Upload, Save, Store, Palette, SlidersHorizontal } from 'lucide-react';
 
 interface SettingsProps {
   user: User;
@@ -30,14 +30,6 @@ const Settings: React.FC<SettingsProps> = ({
     currency: shop.currency || '$'
   });
   const [logoFile, setLogoFile] = useState<File | null>(null);
-
-  const colors = [
-    { id: 'blue', label: 'Blue', class: 'bg-blue-600' },
-    { id: 'purple', label: 'Purple', class: 'bg-purple-600' },
-    { id: 'emerald', label: 'Emerald', class: 'bg-emerald-600' },
-    { id: 'rose', label: 'Rose', class: 'bg-rose-600' },
-    { id: 'orange', label: 'Orange', class: 'bg-orange-600' },
-  ];
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,27 +83,33 @@ const Settings: React.FC<SettingsProps> = ({
         </div>
 
         {/* Color Theme Selector */}
-        <div className="flex items-start justify-between">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-primary-100 dark:bg-primary-900/30">
               <Palette size={20} className="text-primary-600 dark:text-primary-400" />
             </div>
             <div>
               <p className="font-medium text-slate-900 dark:text-white">Accent Color</p>
-              <p className="text-sm text-slate-500 dark:text-slate-400">Select your preferred color scheme</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Pick any color from black to white</p>
             </div>
           </div>
-          <div className="flex gap-2">
-            {colors.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => setThemeColor(c.id)}
-                className={`w-8 h-8 rounded-full ${c.class} flex items-center justify-center transition-transform hover:scale-110 ring-2 ring-offset-2 dark:ring-offset-slate-800 ${themeColor === c.id ? 'ring-slate-400 dark:ring-slate-400 scale-110' : 'ring-transparent'}`}
-                title={c.label}
-              >
-                {themeColor === c.id && <Check size={14} className="text-white" />}
-              </button>
-            ))}
+          
+          <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-700/50 p-2 rounded-xl border border-slate-200 dark:border-slate-600">
+             <div className="relative overflow-hidden w-12 h-12 rounded-lg shadow-sm border border-slate-200 dark:border-slate-600 group">
+                <input 
+                  type="color" 
+                  value={themeColor} 
+                  onChange={(e) => setThemeColor(e.target.value)}
+                  className="absolute -top-2 -left-2 w-16 h-16 cursor-pointer bg-transparent border-0 p-0"
+                  title="Choose any color"
+                />
+             </div>
+             <div className="hidden sm:block">
+               <span className="text-xs text-slate-400 font-mono uppercase">{themeColor}</span>
+             </div>
+             <div className="text-slate-400">
+                <SlidersHorizontal size={16} />
+             </div>
           </div>
         </div>
       </Card>

@@ -23,73 +23,55 @@ import {
 } from './services/storageService';
 import { supabase } from './services/supabaseClient';
 
-// Theme Color Palettes (RGB values for Tailwind)
-const THEMES: Record<string, any> = {
-  blue: {
-    50: '239 246 255',
-    100: '219 234 254',
-    200: '191 219 254',
-    300: '147 197 253',
-    400: '96 165 250',
-    500: '59 130 246',
-    600: '37 99 235',
-    700: '29 78 216',
-    800: '30 64 175',
-    900: '30 58 138',
-    hex: '#2563eb' // 600 shade for charts
-  },
-  purple: {
-    50: '250 245 255',
-    100: '243 232 255',
-    200: '233 213 255',
-    300: '216 180 254',
-    400: '192 132 252',
-    500: '168 85 247',
-    600: '147 51 234',
-    700: '126 34 206',
-    800: '107 33 168',
-    900: '88 28 135',
-    hex: '#9333ea'
-  },
-  emerald: {
-    50: '236 253 245',
-    100: '209 250 229',
-    200: '167 243 208',
-    300: '110 231 183',
-    400: '52 211 153',
-    500: '16 185 129',
-    600: '5 150 105',
-    700: '4 120 87',
-    800: '6 95 70',
-    900: '6 78 59',
-    hex: '#059669'
-  },
-  rose: {
-    50: '255 241 242',
-    100: '255 228 230',
-    200: '254 205 211',
-    300: '253 164 175',
-    400: '251 113 133',
-    500: '244 63 94',
-    600: '225 29 72',
-    700: '190 18 60',
-    800: '159 18 57',
-    900: '136 19 55',
-    hex: '#e11d48'
-  },
-  orange: {
-    50: '255 247 237',
-    100: '255 237 213',
-    200: '254 215 170',
-    300: '253 186 116',
-    400: '251 146 60',
-    500: '249 115 22',
-    600: '234 88 12',
-    700: '194 65 12',
-    800: '154 52 18',
-    900: '124 45 18',
-    hex: '#ea580c'
-  }
+// Helper functions for dynamic palette generation
+const hexToRgb = (hex: string) => {
+  const shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
+  hex = hex.replace(shorthandRegex, (m, r, g, b) => r + r + g + g + b + b);
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result ? {
+    r: parseInt(result[1], 16),
+    g: parseInt(result[2], 16),
+    b: parseInt(result[3], 16)
+  } : { r: 37, g: 99, b: 235 }; // Default blue
+};
+
+const mix = (c1: {r:number, g:number, b:number}, c2: {r:number, g:number, b:number}, weight: number) => {
+  return {
+    r: Math.round(c1.r * weight + c2.r * (1 - weight)),
+    g: Math.round(c1.g * weight + c2.g * (1 - weight)),
+    b: Math.round(c1.b * weight + c2.b * (1 - weight))
+  };
+};
+
+const generatePalette = (hex: string) => {
+  const base = hexToRgb(hex);
+  const white = { r: 255, g: 255, b: 255 };
+  const black = { r: 15, g: 23, b: 42 }; // Slate-900ish for rich darks
+
+  // Generate shades: 50-900
+  // 50-400: Mix base with white
+  // 500: Base
+  // 600-900: Mix base with black
+  const palette: any = {
+    50: mix(white, base, 0.95),
+    100: mix(white, base, 0.9),
+    200: mix(white, base, 0.8),
+    300: mix(white, base, 0.6),
+    400: mix(white, base, 0.3),
+    500: base,
+    600: mix(black, base, 0.1),
+    700: mix(black, base, 0.3),
+    800: mix(black, base, 0.5),
+    900: mix(black, base, 0.7),
+  };
+
+  const cssVars: Record<string, string> = {};
+  Object.keys(palette).forEach(key => {
+    const c = palette[key];
+    cssVars[key] = `${c.r} ${c.g} ${c.b}`;
+  });
+  
+  return { cssVars, hex };
 };
 
 const App = () => {
@@ -117,8 +99,19 @@ const App = () => {
   const [isDarkMode, setIsDarkMode] = useState(() => {
     return localStorage.getItem('theme') === 'dark';
   });
+  
+  // Initialize themeColor from storage. 
+  // If it's a legacy name (e.g. 'blue'), map it to hex. Default to blue hex.
   const [themeColor, setThemeColor] = useState(() => {
-    return localStorage.getItem('themeColor') || 'blue';
+    const stored = localStorage.getItem('themeColor');
+    const LEGACY_COLORS: Record<string, string> = {
+      blue: '#2563eb',
+      purple: '#9333ea',
+      emerald: '#059669',
+      rose: '#e11d48',
+      orange: '#ea580c'
+    };
+    return stored ? (LEGACY_COLORS[stored] || stored) : '#2563eb';
   });
 
   // Data State
@@ -145,14 +138,12 @@ const App = () => {
 
   // Apply Theme Color
   useEffect(() => {
-    const palette = THEMES[themeColor] || THEMES['blue'];
+    const { cssVars } = generatePalette(themeColor);
     const root = document.documentElement;
     
     // Set CSS variables for Tailwind primary color
-    Object.keys(palette).forEach(key => {
-      if (key !== 'hex') {
-        root.style.setProperty(`--primary-${key}`, palette[key]);
-      }
+    Object.keys(cssVars).forEach(key => {
+      root.style.setProperty(`--primary-${key}`, cssVars[key]);
     });
 
     localStorage.setItem('themeColor', themeColor);
@@ -354,7 +345,7 @@ const App = () => {
             sales={sales} 
             products={products} 
             currency={shop.currency || '$'} 
-            themeColorHex={THEMES[themeColor].hex}
+            themeColorHex={themeColor}
           />
         ) : (
           <div className="text-center mt-20 text-slate-500">Access Restricted</div>
@@ -409,7 +400,7 @@ const App = () => {
             sales={sales} 
             products={products} 
             currency={shop.currency || '$'} 
-            themeColorHex={THEMES[themeColor].hex}
+            themeColorHex={themeColor}
           />
         );
     }

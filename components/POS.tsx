@@ -87,37 +87,56 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
 
   const cartTotal = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
 
-  const generatePDF = (items: CartItem[], total: number, invoiceId: string) => {
+  const generatePDF = async (items: CartItem[], total: number, invoiceId: string) => {
     const doc = new jsPDF();
     
-    // Header
-    let yPos = 20;
+    const loadImage = (url: string): Promise<HTMLImageElement> => {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'Anonymous';
+        img.src = url;
+        img.onload = () => resolve(img);
+        img.onerror = (e) => reject(e);
+      });
+    };
 
-    // Add Logo if available
+    let headerTextX = 14;
+    
+    // Attempt to add logo
     if (shop.logoUrl) {
       try {
-        const img = new Image();
-        img.src = shop.logoUrl;
-        doc.addImage(img, 'PNG', 14, 15, 20, 20); // x, y, w, h
-        yPos = 45; // Push text down
+        const img = await loadImage(shop.logoUrl);
+        // Add logo at x:14, y:10 with size 25x25
+        doc.addImage(img, 'PNG', 14, 10, 25, 25); 
+        headerTextX = 45; // Shift text right to avoid overlap with logo
       } catch (e) {
-        // Fallback if CORS or image load fails
-        console.warn('Could not add logo to PDF', e);
+        console.warn('Logo load failed or CORS issue, skipping logo.', e);
+        // Keep headerTextX at 14
       }
     }
 
-    doc.setFontSize(20);
+    // Shop Name & Address Header
+    // Aligned either to left (14) or to right of logo (45)
+    doc.setFontSize(18);
     doc.setTextColor(40);
-    doc.text(shop.name, shop.logoUrl ? 40 : 14, 25);
-    
+    doc.text(shop.name, headerTextX, 20); 
+
     doc.setFontSize(10);
+    doc.setTextColor(100);
     if (shop.address) {
-      doc.text(shop.address, shop.logoUrl ? 40 : 14, 32);
+      doc.text(shop.address, headerTextX, 26);
     }
     
-    doc.text(`Invoice #: ${invoiceId}`, 14, yPos);
-    doc.text(`Date: ${new Date().toLocaleString()}`, 14, yPos + 5);
-    doc.text(`Cashier: ${user.fullName}`, 14, yPos + 10);
+    // Invoice Meta Data
+    // We position this below the header area to ensure no overlap.
+    // Header area takes up roughly top 40 units (Logo is 10->35 + padding).
+    const metaStartY = 50;
+    
+    doc.setTextColor(0);
+    doc.setFontSize(10);
+    doc.text(`Invoice #: ${invoiceId}`, 14, metaStartY);
+    doc.text(`Date: ${new Date().toLocaleString()}`, 14, metaStartY + 6);
+    doc.text(`Cashier: ${user.fullName}`, 14, metaStartY + 12);
 
     // Table
     const tableData = items.map(item => [
@@ -128,22 +147,24 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
     ]);
 
     autoTable(doc, {
-      startY: yPos + 20,
+      startY: metaStartY + 20,
       head: [['Item', 'Qty', 'Price', 'Total']],
       body: tableData,
       theme: 'grid',
-      headStyles: { fillColor: [59, 130, 246] },
+      headStyles: { fillColor: [59, 130, 246] }, // Tailwind Blue-500
+      styles: { fontSize: 10 },
     });
 
     // Total
     const finalY = (doc as any).lastAutoTable.finalY + 10;
-    doc.setFontSize(12);
+    doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
     doc.text(`Total Amount: ${currency}${total.toFixed(2)}`, 140, finalY);
 
     // Footer
-    doc.setFontSize(8);
+    doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
+    doc.setTextColor(128);
     doc.text("Thank you for your business!", 105, 280, { align: "center" });
 
     doc.save(`invoice_${invoiceId}.pdf`);
@@ -158,10 +179,10 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
     try {
         await onCompleteSale(cart, cartTotal);
         try {
-          generatePDF(cart, cartTotal, invoiceId);
+          await generatePDF(cart, cartTotal, invoiceId);
         } catch (e) {
           console.error("PDF Generation failed", e);
-          alert("Sale recorded but PDF generation failed (CORS issue often affects images).");
+          alert("Sale recorded but PDF generation failed (Image loading error or browser block).");
         }
         
         setCart([]);
