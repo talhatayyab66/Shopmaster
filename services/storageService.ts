@@ -524,6 +524,15 @@ export const getSales = async (shopId: string): Promise<Sale[]> => {
   }));
 };
 
+export const clearSalesHistory = async (shopId: string) => {
+  const { error } = await supabase
+    .from('sales')
+    .delete()
+    .eq('shop_id', shopId);
+
+  if (error) throw new Error(error.message);
+};
+
 // --- Chat ---
 
 export const getChatMessages = async (shopId: string): Promise<Message[]> => {

@@ -11,6 +11,7 @@ interface InventoryProps {
   onSave: (product: Omit<Product, 'id'> & { id?: string }) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   defaultFilter?: 'all' | 'low-stock';
+  currency: string;
 }
 
 interface PreviewItem extends Product {
@@ -19,7 +20,7 @@ interface PreviewItem extends Product {
   _originalName?: string;
 }
 
-const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete, defaultFilter = 'all' }) => {
+const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete, defaultFilter = 'all', currency }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -406,7 +407,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete,
                      {product.brand && <div className="text-slate-700 dark:text-slate-300 font-medium">{product.brand}</div>}
                      <div className="text-slate-500 text-xs">{product.category}</div>
                   </td>
-                  <td className="px-6 py-4 font-medium text-slate-900 dark:text-white">${product.price.toFixed(2)}</td>
+                  <td className="px-6 py-4 font-medium text-slate-900 dark:text-white">{currency}{product.price.toFixed(2)}</td>
                   <td className="px-6 py-4">
                     <span className={product.stock < product.minStockLevel ? 'text-red-600 font-bold' : 'text-slate-700 dark:text-slate-300'}>
                       {product.stock}

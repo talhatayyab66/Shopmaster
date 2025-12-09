@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Search, FileText, Calendar, User as UserIcon, Package, ArrowUpRight, Download } from 'lucide-react';
-import { Sale, Shop } from '../types';
+import { Search, FileText, Calendar, User as UserIcon, Package, ArrowUpRight, Download, Trash2 } from 'lucide-react';
+import { Sale, Shop, UserRole } from '../types';
 import { Card, Button, Input } from './ui/LayoutComponents';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -9,9 +9,11 @@ interface SalesHistoryProps {
   sales: Sale[];
   shop: Shop;
   currency: string;
+  userRole: UserRole;
+  onClearHistory: () => Promise<void>;
 }
 
-const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, shop, currency }) => {
+const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, shop, currency, userRole, onClearHistory }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
 
@@ -159,6 +161,11 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, shop, currency }) =>
           <p className="text-slate-500 dark:text-slate-400">View past dispensed items and sales</p>
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
+             {userRole === UserRole.ADMIN && (
+                <Button variant="danger" onClick={onClearHistory} className="whitespace-nowrap flex items-center">
+                   <Trash2 size={16} className="mr-2 inline" /> Clear History
+                </Button>
+             )}
              <Button variant="secondary" onClick={generateDailyReport} className="whitespace-nowrap">
                  <Download size={16} className="mr-2 inline" /> Daily Report
              </Button>

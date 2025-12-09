@@ -20,7 +20,8 @@ import {
   getUsersByShop,
   logoutUser,
   subscribeToShopUpdates,
-  subscribeToChat
+  subscribeToChat,
+  clearSalesHistory
 } from './services/storageService';
 import { supabase } from './services/supabaseClient';
 
@@ -340,6 +341,21 @@ const App = () => {
     await refreshData();
   };
 
+  const handleClearHistory = async () => {
+    if (!shop) return;
+    if (window.confirm("Are you sure you want to CLEAR ALL sales history? This action cannot be undone.")) {
+      setLoading(true);
+      try {
+        await clearSalesHistory(shop.id);
+        await refreshData();
+      } catch (e: any) {
+        alert("Failed to clear history: " + e.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
   // Handler for dashboard interactivity
   const handleDashboardNavigation = (view: 'inventory' | 'orders', filter?: 'low-stock') => {
     if (filter) {
@@ -384,6 +400,7 @@ const App = () => {
             onSave={handleSaveProduct} 
             onDelete={handleDeleteProduct} 
             defaultFilter={inventoryFilter}
+            currency={shop.currency || '$'}
           />
         );
       case 'pos':
@@ -401,6 +418,8 @@ const App = () => {
              sales={sales}
              shop={shop}
              currency={shop.currency || '$'}
+             userRole={user.role}
+             onClearHistory={handleClearHistory}
           />
         );
       case 'staff':
