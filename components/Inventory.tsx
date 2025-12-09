@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Search, Edit2, Trash2, AlertCircle, ScanBarcode, Filter, X } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Plus, Search, Edit2, Trash2, AlertCircle, ScanBarcode, Filter, X, Upload, Download, FileSpreadsheet } from 'lucide-react';
 import { Product, User, UserRole } from '../types';
 import { Card, Button, Input, Modal } from './ui/LayoutComponents';
+import * as XLSX from 'xlsx';
+import { bulkUpsertProducts } from '../services/storageService';
 
 interface InventoryProps {
   products: Product[];
@@ -17,13 +19,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete,
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(false);
   const [showLowStockOnly, setShowLowStockOnly] = useState(defaultFilter === 'low-stock');
-  
-  // Determine if specific fields are needed based on existing products or user context (if available).
-  // Ideally, we pass 'shop' prop to Inventory, but since we don't have it here directly, 
-  // we can infer from product structure or just always show them if present in editingProduct.
-  // However, to do it cleanly, we will check if ANY product has a formula, or if we are just adding.
-  // For a cleaner approach, let's assume standard fields unless we see pharmacy data or if the user is in a context.
-  // Since 'shop' isn't passed, we'll enable fields if they are relevant.
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Update state if defaultFilter changes (e.g. navigation from dashboard)
   useEffect(() => {
@@ -105,6 +101,103 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete,
       }
   };
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setLoading(true);
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json(ws);
+
+        if (data.length === 0) {
+          alert("Excel file is empty.");
+          setLoading(false);
+          return;
+        }
+
+        const newProducts: Product[] = [];
+        
+        // Map Excel rows to Product objects
+        for (const row of data as any[]) {
+          // Try to match headers loosely
+          const name = row['Name'] || row['Product Name'] || row['Item Name'];
+          const sku = row['SKU'] || row['Barcode'] ? String(row['SKU'] || row['Barcode']) : undefined;
+          
+          if (!name && !sku) continue; // Skip invalid rows
+
+          // Check if product exists (by SKU first, then Name)
+          const existing = products.find(p => 
+            (sku && p.sku === sku) || 
+            (!sku && p.name.toLowerCase() === name?.toLowerCase())
+          );
+
+          const product: Product = {
+            id: existing ? existing.id : crypto.randomUUID(),
+            shopId: user.shopId,
+            name: name || (existing?.name) || 'Unknown Item',
+            category: row['Category'] || (existing?.category) || 'General',
+            price: Number(row['Price'] || row['Selling Price'] || existing?.price || 0),
+            costPrice: Number(row['Cost'] || row['Cost Price'] || existing?.costPrice || 0),
+            stock: Number(row['Stock'] || row['Quantity'] || existing?.stock || 0),
+            minStockLevel: Number(row['Min Stock'] || row['Alert Level'] || existing?.minStockLevel || 5),
+            sku: sku || existing?.sku,
+            brand: row['Brand'] || existing?.brand,
+            formula: row['Formula'] || existing?.formula
+          };
+          
+          newProducts.push(product);
+        }
+
+        if (newProducts.length > 0) {
+           await bulkUpsertProducts(newProducts);
+           // Trigger refresh by calling onSave with a dummy (hacky but effective if onSave triggers refresh in parent)
+           // Actually, onSave just refreshes data in App.tsx. 
+           // We can just call onSave with one item, but better is if Inventory triggered a refresh.
+           // Since Inventory doesn't have a direct 'refresh' prop, we rely on parent re-rendering.
+           // However, bulkUpsertProducts writes to DB. We need to trigger parent update.
+           // Calling onSave with a dummy update is a safe way to trigger App.tsx refreshData
+           await onSave(newProducts[0]); 
+           alert(`Successfully processed ${newProducts.length} items.`);
+        } else {
+           alert("No valid items found in the file.");
+        }
+
+      } catch (err: any) {
+        console.error(err);
+        alert("Failed to parse Excel file: " + err.message);
+      } finally {
+        setLoading(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const downloadTemplate = () => {
+    const ws = XLSX.utils.json_to_sheet([
+      {
+        'Name': 'Example Item',
+        'Category': 'General',
+        'Price': 100,
+        'Cost Price': 80,
+        'Stock': 50,
+        'Min Stock': 10,
+        'SKU': 'ABC-123',
+        'Brand': 'BrandX',
+        'Formula': 'ChemicalY (Optional)'
+      }
+    ]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Template");
+    XLSX.writeFile(wb, "inventory_template.xlsx");
+  };
+
   const filteredProducts = products.filter(p => {
     const term = searchTerm.toLowerCase();
     const matchesSearch = p.name.toLowerCase().includes(term) || 
@@ -122,9 +215,9 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete,
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between gap-4">
-        <div className="flex gap-2 flex-1">
-            <div className="relative flex-1 max-w-md">
+      <div className="flex flex-col xl:flex-row justify-between gap-4">
+        <div className="flex flex-col sm:flex-row gap-2 flex-1">
+            <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
                 <input
                     type="text"
@@ -136,7 +229,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete,
             </div>
             <button
                 onClick={() => setShowLowStockOnly(!showLowStockOnly)}
-                className={`px-3 py-2 rounded-lg border flex items-center gap-2 transition-colors ${
+                className={`px-3 py-2 rounded-lg border flex items-center gap-2 transition-colors whitespace-nowrap ${
                     showLowStockOnly 
                     ? 'bg-amber-50 border-amber-200 text-amber-700' 
                     : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50'
@@ -150,10 +243,29 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete,
         </div>
 
         {canEdit && (
-          <Button onClick={() => handleOpenModal()} disabled={loading} className="w-full sm:w-auto">
-            <Plus size={20} className="inline mr-2" />
-            Add Item
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={downloadTemplate} disabled={loading} className="whitespace-nowrap hidden sm:flex items-center">
+               <Download size={18} className="mr-2" />
+               Template
+            </Button>
+            <div className="relative">
+               <input 
+                 type="file" 
+                 ref={fileInputRef}
+                 accept=".xlsx,.xls,.csv"
+                 className="hidden"
+                 onChange={handleFileUpload}
+               />
+               <Button variant="secondary" onClick={() => fileInputRef.current?.click()} disabled={loading} className="whitespace-nowrap flex items-center w-full justify-center">
+                  <FileSpreadsheet size={18} className="mr-2 text-green-600" />
+                  Import Excel
+               </Button>
+            </div>
+            <Button onClick={() => handleOpenModal()} disabled={loading} className="whitespace-nowrap flex items-center w-full justify-center">
+              <Plus size={20} className="mr-2" />
+              Add Item
+            </Button>
+          </div>
         )}
       </div>
 

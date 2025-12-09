@@ -426,6 +426,27 @@ export const saveProduct = async (product: Omit<Product, 'id'> & { id?: string }
   }
 };
 
+export const bulkUpsertProducts = async (products: Product[]) => {
+  if (products.length === 0) return;
+  
+  const dbProducts = products.map(p => ({
+    id: p.id,
+    shop_id: p.shopId,
+    name: p.name,
+    category: p.category,
+    price: p.price,
+    cost_price: p.costPrice,
+    stock: p.stock,
+    min_stock_level: p.minStockLevel,
+    sku: p.sku,
+    formula: p.formula,
+    brand: p.brand
+  }));
+
+  const { error } = await supabase.from('products').upsert(dbProducts);
+  if (error) throw new Error(error.message);
+};
+
 export const deleteProduct = async (productId: string) => {
   const { error } = await supabase.from('products').delete().eq('id', productId);
   if (error) throw new Error(error.message);
