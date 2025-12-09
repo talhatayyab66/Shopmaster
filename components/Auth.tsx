@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { User, Shop, BusinessType } from '../types';
 import { Card, Button, Input } from './ui/LayoutComponents';
 import { createShop, loginUser } from '../services/storageService';
-import { Store, MailCheck, ArrowLeft, Stethoscope, Pill, Utensils } from 'lucide-react';
+import { Store, MailCheck, ArrowLeft, Stethoscope, Pill, Utensils, Monitor, ShoppingCart } from 'lucide-react';
 
 interface AuthProps {
   onLogin: (user: User, shop: Shop) => void;
@@ -78,7 +78,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
       <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
         <div className="max-w-md w-full">
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-slate-900">ShopMaster AI</h1>
+            <h1 className="text-3xl font-bold text-slate-900">POS PRO</h1>
           </div>
           <Card className="shadow-xl border-0 p-8 text-center">
             <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -109,13 +109,13 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-600 rounded-2xl mb-4 shadow-lg shadow-primary-600/30">
-            {regData.businessType === 'CLINIC' ? <Stethoscope className="text-white" size={32} /> :
-             regData.businessType === 'PHARMACY' ? <Pill className="text-white" size={32} /> :
-             regData.businessType === 'RESTAURANT' ? <Utensils className="text-white" size={32} /> :
-             <Store className="text-white" size={32} />}
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-primary-500 to-primary-700 rounded-2xl mb-6 shadow-xl shadow-primary-500/20 relative">
+            <Monitor className="text-white" size={42} />
+            <div className="absolute -bottom-2 -right-2 bg-white rounded-full p-2 shadow-md border-2 border-slate-50">
+               <ShoppingCart className="text-primary-600" size={20} />
+            </div>
           </div>
-          <h1 className="text-3xl font-bold text-slate-900">ShopMaster AI</h1>
+          <h1 className="text-3xl font-bold text-slate-900">POS PRO</h1>
           <p className="text-slate-500 mt-2">Intelligent Management System</p>
         </div>
 

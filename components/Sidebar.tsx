@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, Package, ShoppingCart, Users, Settings, LogOut, Sparkles, MessageCircle, Moon, Sun, FileText } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, Users, Settings, LogOut, Sparkles, MessageCircle, Moon, Sun, FileText, Monitor } from 'lucide-react';
 import { User, ViewState, Shop } from '../types';
 
 interface SidebarProps {
@@ -34,12 +34,19 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, onLogout, 
             {shop?.logoUrl ? (
               <img src={shop.logoUrl} alt="Logo" className="w-10 h-10 rounded-lg object-contain bg-white" />
             ) : (
-              <div className="w-10 h-10 rounded-lg bg-primary-600 flex items-center justify-center text-lg font-bold">
-                {shop?.name.charAt(0)}
+              <div className="relative w-10 h-10 flex-shrink-0">
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary-500 to-primary-700 rounded-lg flex items-center justify-center text-white shadow-lg">
+                      <Monitor size={20} />
+                  </div>
+                  <div className="absolute -bottom-1 -right-1 bg-slate-900 rounded-full p-[2px]">
+                      <div className="bg-white rounded-full p-[3px]">
+                        <ShoppingCart size={10} className="text-primary-600" />
+                      </div>
+                  </div>
               </div>
             )}
             <div className="overflow-hidden">
-               <h1 className="text-lg font-bold truncate">{shop?.name || 'ShopMaster'}</h1>
+               <h1 className="text-lg font-bold truncate">{shop?.name || 'POS PRO'}</h1>
                {shop?.address && <p className="text-[10px] text-slate-400 truncate">{shop.address}</p>}
             </div>
           </div>

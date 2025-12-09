@@ -81,7 +81,9 @@ const Staff: React.FC<StaffProps> = ({ staff, shopId, refreshStaff }) => {
                 </div>
               </div>
               {user.role === 'ADMIN' ? (
-                <Shield size={20} className="text-purple-600" title="Admin" />
+                <div title="Admin">
+                  <Shield size={20} className="text-purple-600" />
+                </div>
               ) : (
                 <button 
                   onClick={() => handleDelete(user.id)}
