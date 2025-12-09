@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Search, Plus, Minus, Trash2, Printer, CheckCircle, ScanBarcode, User as UserIcon, Activity, Phone, Utensils, Stethoscope } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, Printer, CheckCircle, ScanBarcode, User as UserIcon, Activity, Phone, Utensils, Stethoscope, ShoppingBag, Package } from 'lucide-react';
 import { Product, CartItem, User, Shop } from '../types';
 import { Card, Button, Input } from './ui/LayoutComponents';
 import { jsPDF } from 'jspdf';
@@ -17,6 +17,7 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isSuccess, setIsSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<'products' | 'cart'>('products');
   
   // Customer / Patient Data
   const [customerData, setCustomerData] = useState({
@@ -211,26 +212,6 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
     }
 
     try {
-        // We inject the extra fields into the onCompleteSale call.
-        // NOTE: The prop interface might need to be flexible or we cast, 
-        // but for now we assume onCompleteSale logic inside App.tsx handles merging
-        // actually App.tsx's handleCompleteSale needs to read these states? 
-        // No, App.tsx just takes items and total.
-        // We need to pass the metadata. 
-        // Since we can't easily change the prop signature in this single file edit without breaking App.tsx, 
-        // we will implement a workaround: 
-        // 1. Pass the items and total as usual.
-        // 2. We need to actually send the data to storage. 
-        // The best way is to modify App.tsx to accept `saleMetadata` or update `onCompleteSale` signature.
-        // Given constraints, I will attach metadata to the cart or similar.
-        // Actually, I can just change the App.tsx signature in the next step.
-        // Let's assume onCompleteSale accepts optional metadata.
-        
-        // However, to keep it simple and working with the provided XML structure:
-        // I will temporarily store this in a global or modify the logic.
-        // Wait, I am modifying all files. I will update App.tsx signature too.
-        
-        // But first, let's call the function.
         await (onCompleteSale as any)(cart, cartTotal, saleExtras);
         
         try {
@@ -316,110 +297,145 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
   }
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-200px)] md:h-[calc(100vh-140px)]">
-      {/* Product Selection */}
-      <div className="flex-1 flex flex-col gap-4 order-2 lg:order-1">
-        <div className="relative">
-          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 flex items-center gap-1">
-             <Search size={18} />
-          </div>
-          <input
-            ref={searchInputRef}
-            type="text"
-            placeholder={shop.businessType === 'PHARMACY' ? "Search by Name, Formula, Brand..." : "Scan barcode or search product..."}
-            className="w-full pl-10 pr-12 py-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-primary-500 outline-none shadow-sm transition-all focus:border-primary-500"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            onKeyDown={handleKeyDown}
-            autoFocus
-          />
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
-            <ScanBarcode size={20} className={searchTerm ? "text-primary-500" : ""} />
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 p-1 content-start">
-          {availableProducts.map(product => (
-            <button
-              key={product.id}
-              onClick={() => addToCart(product)}
-              className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-primary-300 transition-all text-left flex flex-col justify-between group h-32 md:h-auto"
-            >
-              <div>
-                <h4 className="font-semibold text-slate-800 dark:text-slate-100 line-clamp-2 text-sm md:text-base">{product.name}</h4>
-                {product.brand && <p className="text-xs text-primary-600 font-medium">{product.brand}</p>}
-                {product.formula && <p className="text-[10px] text-slate-500 italic mt-0.5 truncate" title={product.formula}>{product.formula}</p>}
-                
-                {!product.formula && <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{product.category}</p>}
-              </div>
-              <div className="mt-2 flex justify-between items-end">
-                <span className="font-bold text-primary-600 dark:text-primary-400 text-sm md:text-base">{currency}{product.price.toFixed(2)}</span>
-                <span className="text-[10px] md:text-xs bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded text-slate-600 dark:text-slate-300">Qty: {product.stock}</span>
-              </div>
-            </button>
-          ))}
-          {availableProducts.length === 0 && (
-            <div className="col-span-full flex items-center justify-center text-slate-400 h-40">
-              {searchTerm ? 'No matching items found.' : 'No items found.'}
-            </div>
+    <div className="flex flex-col h-[calc(100vh-200px)] md:h-[calc(100vh-140px)]">
+      {/* Mobile Tab Switcher */}
+      <div className="lg:hidden flex mb-4 bg-white dark:bg-slate-800 rounded-lg p-1 border border-slate-200 dark:border-slate-700 shrink-0 shadow-sm">
+        <button
+          onClick={() => setActiveTab('products')}
+          className={`flex-1 py-2 px-4 rounded-md text-sm font-medium flex items-center justify-center gap-2 transition-all ${
+            activeTab === 'products'
+              ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400'
+              : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'
+          }`}
+        >
+          <Package size={18} />
+          Products
+        </button>
+        <button
+          onClick={() => setActiveTab('cart')}
+          className={`flex-1 py-2 px-4 rounded-md text-sm font-medium flex items-center justify-center gap-2 transition-all relative ${
+            activeTab === 'cart'
+              ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400'
+              : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'
+          }`}
+        >
+          <ShoppingBag size={18} />
+          Cart
+          {cart.length > 0 && (
+            <span className="bg-primary-600 text-white text-[10px] px-2 py-0.5 rounded-full ml-2 text-center font-bold shadow-sm">
+              {cart.reduce((a,c) => a + c.quantity, 0)}
+            </span>
           )}
-        </div>
+        </button>
       </div>
 
-      {/* Cart & Checkout */}
-      <Card className="w-full lg:w-96 flex flex-col p-0 overflow-hidden border-0 shadow-lg ring-1 ring-slate-200 dark:ring-slate-700 order-1 lg:order-2 max-h-[50vh] lg:max-h-full">
-        <div className="p-4 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
-          <div>
-            <h2 className="font-bold text-lg text-slate-800 dark:text-white">
-                {shop.businessType === 'RESTAURANT' ? 'Current Table' : 'Current Order'}
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">{cart.length} Items</p>
+      <div className="flex flex-1 gap-6 overflow-hidden relative">
+        {/* Product Selection */}
+        <div className={`flex-1 flex-col gap-4 h-full ${activeTab === 'products' ? 'flex' : 'hidden lg:flex'}`}>
+          <div className="relative shrink-0">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 flex items-center gap-1">
+               <Search size={18} />
+            </div>
+            <input
+              ref={searchInputRef}
+              type="text"
+              placeholder={shop.businessType === 'PHARMACY' ? "Search by Name, Formula, Brand..." : "Scan barcode or search product..."}
+              className="w-full pl-10 pr-12 py-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-primary-500 outline-none shadow-sm transition-all focus:border-primary-500"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyDown={handleKeyDown}
+              autoFocus
+            />
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+              <ScanBarcode size={20} className={searchTerm ? "text-primary-500" : ""} />
+            </div>
           </div>
-          <div className="font-bold text-xl text-primary-600 dark:text-primary-400">{currency}{cartTotal.toFixed(2)}</div>
-        </div>
 
-        <div className="p-4 border-b border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800">
-             {renderCustomerFields()}
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-white dark:bg-slate-800">
-          {cart.map(item => (
-            <div key={item.id} className="flex justify-between items-center bg-white dark:bg-slate-700 p-2 rounded-lg border border-slate-100 dark:border-slate-600 shadow-sm">
-              <div className="flex-1 min-w-0 mr-2">
-                <h4 className="font-medium text-sm text-slate-900 dark:text-white truncate">{item.name}</h4>
-                <p className="text-xs text-slate-500 dark:text-slate-300">{currency}{item.price.toFixed(2)}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="flex items-center bg-slate-100 dark:bg-slate-600 rounded-lg">
-                  <button onClick={() => updateQuantity(item.id, -1)} className="p-1 hover:text-primary-600 dark:hover:text-primary-300 text-slate-600 dark:text-slate-300"><Minus size={14} /></button>
-                  <span className="w-6 text-center text-sm font-medium text-slate-800 dark:text-white">{item.quantity}</span>
-                  <button onClick={() => updateQuantity(item.id, 1)} className="p-1 hover:text-primary-600 dark:hover:text-primary-300 text-slate-600 dark:text-slate-300"><Plus size={14} /></button>
+          <div className="flex-1 overflow-y-auto grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 p-1 content-start pb-20 lg:pb-0">
+            {availableProducts.map(product => (
+              <button
+                key={product.id}
+                onClick={() => addToCart(product)}
+                className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-primary-300 transition-all text-left flex flex-col justify-between group h-32 md:h-auto"
+              >
+                <div>
+                  <h4 className="font-semibold text-slate-800 dark:text-slate-100 line-clamp-2 text-sm md:text-base">{product.name}</h4>
+                  {product.brand && <p className="text-xs text-primary-600 font-medium">{product.brand}</p>}
+                  {product.formula && <p className="text-[10px] text-slate-500 italic mt-0.5 truncate" title={product.formula}>{product.formula}</p>}
+                  
+                  {!product.formula && <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{product.category}</p>}
                 </div>
-                <button onClick={() => removeFromCart(item.id)} className="text-red-400 hover:text-red-600">
-                  <Trash2 size={16} />
-                </button>
+                <div className="mt-2 flex justify-between items-end">
+                  <span className="font-bold text-primary-600 dark:text-primary-400 text-sm md:text-base">{currency}{product.price.toFixed(2)}</span>
+                  <span className="text-[10px] md:text-xs bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded text-slate-600 dark:text-slate-300">Qty: {product.stock}</span>
+                </div>
+              </button>
+            ))}
+            {availableProducts.length === 0 && (
+              <div className="col-span-full flex items-center justify-center text-slate-400 h-40">
+                {searchTerm ? 'No matching items found.' : 'No items found.'}
               </div>
-            </div>
-          ))}
-          {cart.length === 0 && (
-            <div className="h-full flex flex-col items-center justify-center text-slate-400 py-8">
-              <Printer size={32} className="mb-2 opacity-50" />
-              <p className="text-sm">List is empty</p>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
-        <div className="p-4 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700">
-          <Button 
-            onClick={handleCheckout} 
-            disabled={cart.length === 0 || loading} 
-            className="w-full flex items-center justify-center py-3 text-lg"
-          >
-            {isSuccess ? <CheckCircle className="mr-2" /> : <Printer className="mr-2" />}
-            {loading ? '...' : (isSuccess ? 'Dispensed' : (shop.businessType === 'CLINIC' || shop.businessType === 'PHARMACY' ? 'Dispense' : 'Checkout'))}
-          </Button>
+        {/* Cart & Checkout */}
+        <div className={`w-full lg:w-96 flex-col h-full ${activeTab === 'cart' ? 'flex' : 'hidden lg:flex'}`}>
+           <Card className="flex flex-col p-0 overflow-hidden border-0 shadow-lg ring-1 ring-slate-200 dark:ring-slate-700 h-full">
+            <div className="p-4 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center shrink-0">
+              <div>
+                <h2 className="font-bold text-lg text-slate-800 dark:text-white">
+                    {shop.businessType === 'RESTAURANT' ? 'Current Table' : 'Current Order'}
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{cart.length} Items</p>
+              </div>
+              <div className="font-bold text-xl text-primary-600 dark:text-primary-400">{currency}{cartTotal.toFixed(2)}</div>
+            </div>
+
+            <div className="p-4 border-b border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0">
+                {renderCustomerFields()}
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-white dark:bg-slate-800">
+              {cart.map(item => (
+                <div key={item.id} className="flex justify-between items-center bg-white dark:bg-slate-700 p-2 rounded-lg border border-slate-100 dark:border-slate-600 shadow-sm">
+                  <div className="flex-1 min-w-0 mr-2">
+                    <h4 className="font-medium text-sm text-slate-900 dark:text-white truncate">{item.name}</h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-300">{currency}{item.price.toFixed(2)}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center bg-slate-100 dark:bg-slate-600 rounded-lg">
+                      <button onClick={() => updateQuantity(item.id, -1)} className="p-1 hover:text-primary-600 dark:hover:text-primary-300 text-slate-600 dark:text-slate-300"><Minus size={14} /></button>
+                      <span className="w-6 text-center text-sm font-medium text-slate-800 dark:text-white">{item.quantity}</span>
+                      <button onClick={() => updateQuantity(item.id, 1)} className="p-1 hover:text-primary-600 dark:hover:text-primary-300 text-slate-600 dark:text-slate-300"><Plus size={14} /></button>
+                    </div>
+                    <button onClick={() => removeFromCart(item.id)} className="text-red-400 hover:text-red-600">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {cart.length === 0 && (
+                <div className="h-full flex flex-col items-center justify-center text-slate-400 py-8">
+                  <Printer size={32} className="mb-2 opacity-50" />
+                  <p className="text-sm">List is empty</p>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 shrink-0">
+              <Button 
+                onClick={handleCheckout} 
+                disabled={cart.length === 0 || loading} 
+                className="w-full flex items-center justify-center py-3 text-lg"
+              >
+                {isSuccess ? <CheckCircle className="mr-2" /> : <Printer className="mr-2" />}
+                {loading ? '...' : (isSuccess ? 'Dispensed' : (shop.businessType === 'CLINIC' || shop.businessType === 'PHARMACY' ? 'Dispense' : 'Checkout'))}
+              </Button>
+            </div>
+          </Card>
         </div>
-      </Card>
+      </div>
     </div>
   );
 };
