@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Search, Edit2, Trash2, AlertCircle, Filter, X, Upload, Download, FileSpreadsheet, Check, AlertTriangle, ArrowRight } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, AlertCircle, Filter, X, Upload, Download, FileSpreadsheet, Check, AlertTriangle, ArrowRight, CheckSquare, Square, Printer } from 'lucide-react';
 import { Product, User, UserRole } from '../types';
 import { Card, Button, Input, Modal } from './ui/LayoutComponents';
 import * as XLSX from 'xlsx';
 import { bulkUpsertProducts } from '../services/storageService';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface InventoryProps {
   products: Product[];
@@ -28,6 +30,9 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete,
   const [showLowStockOnly, setShowLowStockOnly] = useState(defaultFilter === 'low-stock');
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  // Selection State
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
   // Import Preview State
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [previewData, setPreviewData] = useState<PreviewItem[]>([]);
@@ -109,6 +114,69 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete,
             setLoading(false);
         }
       }
+  };
+
+  // --- Inventory Report Generation ---
+  const generateInventoryReport = () => {
+    // 1. Determine which items to include
+    const itemsToReport = selectedIds.size > 0 
+        ? products.filter(p => selectedIds.has(p.id))
+        : products;
+
+    if (itemsToReport.length === 0) {
+        alert("No items available for report.");
+        return;
+    }
+
+    const doc = new jsPDF();
+    const date = new Date().toLocaleDateString();
+
+    doc.setFontSize(18);
+    doc.text(`Inventory Report`, 14, 20);
+    doc.setFontSize(10);
+    doc.text(`Date: ${date}`, 14, 26);
+    doc.text(`Items: ${itemsToReport.length}`, 14, 32);
+
+    let totalCostValue = 0;
+    let totalRetailValue = 0;
+
+    const tableData = itemsToReport.map(item => {
+        const costVal = item.costPrice * item.stock;
+        const retailVal = item.price * item.stock;
+        
+        totalCostValue += costVal;
+        totalRetailValue += retailVal;
+
+        return [
+            item.name,
+            item.category,
+            item.stock.toString(),
+            `${currency}${item.costPrice.toFixed(2)}`,
+            `${currency}${item.price.toFixed(2)}`,
+            `${currency}${costVal.toFixed(2)}`,
+            `${currency}${retailVal.toFixed(2)}`
+        ];
+    });
+
+    autoTable(doc, {
+        startY: 40,
+        head: [['Item', 'Category', 'Qty', 'Cost', 'Price', 'Total Cost', 'Total Value']],
+        body: tableData,
+        foot: [[
+            'TOTALS', 
+            '', 
+            '', 
+            '', 
+            '', 
+            `${currency}${totalCostValue.toFixed(2)}`, 
+            `${currency}${totalRetailValue.toFixed(2)}`
+        ]],
+        styles: { fontSize: 8 },
+        footStyles: { fillColor: [41, 37, 36], textColor: [255, 255, 255], fontStyle: 'bold' }
+    });
+
+    const filename = selectedIds.size > 0 ? 'inventory_selected.pdf' : 'inventory_full.pdf';
+    doc.save(filename);
   };
 
   // --- Export Functionality ---
@@ -308,6 +376,25 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete,
     invalid: previewData.filter(i => i._status === 'invalid').length,
     total: previewData.length
   };
+  
+  // Checkbox helpers
+  const isAllSelected = filteredProducts.length > 0 && selectedIds.size === filteredProducts.length;
+  const isPartiallySelected = selectedIds.size > 0 && selectedIds.size < filteredProducts.length;
+
+  const toggleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredProducts.map(p => p.id)));
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    const newSet = new Set(selectedIds);
+    if (newSet.has(id)) newSet.delete(id);
+    else newSet.add(id);
+    setSelectedIds(newSet);
+  };
 
   return (
     <div className="space-y-6">
@@ -340,6 +427,12 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete,
 
         {canEdit && (
           <div className="flex gap-2 overflow-x-auto pb-1">
+            {/* New Report Button */}
+            <Button variant="secondary" onClick={generateInventoryReport} disabled={loading} className="whitespace-nowrap flex items-center">
+               <Printer size={18} className="mr-2" />
+               {selectedIds.size > 0 ? `Report (${selectedIds.size})` : 'Report (All)'}
+            </Button>
+
             <Button variant="secondary" onClick={downloadTemplate} disabled={loading} className="whitespace-nowrap flex items-center">
                <Download size={18} className="mr-2" />
                Template
@@ -387,6 +480,11 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete,
           <table className="w-full text-sm text-left min-w-[600px]">
             <thead className="text-xs text-slate-500 dark:text-slate-400 uppercase bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
               <tr>
+                <th className="px-6 py-4 w-12">
+                   <button onClick={toggleSelectAll} className="flex items-center text-slate-500 hover:text-primary-600">
+                      {isAllSelected ? <CheckSquare size={18} /> : (isPartiallySelected ? <div className="w-[14px] h-[14px] bg-primary-600 rounded-sm mx-[2px]"/> : <Square size={18} />)}
+                   </button>
+                </th>
                 <th className="px-6 py-4">Item Name / Formula</th>
                 <th className="px-6 py-4">Brand / Category</th>
                 <th className="px-6 py-4">Price</th>
@@ -397,7 +495,12 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete,
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {filteredProducts.map((product) => (
-                <tr key={product.id} className="hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                <tr key={product.id} className={`hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors ${selectedIds.has(product.id) ? 'bg-primary-50 dark:bg-primary-900/10' : ''}`}>
+                  <td className="px-6 py-4">
+                     <button onClick={() => toggleSelect(product.id)} className={`flex items-center ${selectedIds.has(product.id) ? 'text-primary-600' : 'text-slate-400'}`}>
+                        {selectedIds.has(product.id) ? <CheckSquare size={18} /> : <Square size={18} />}
+                     </button>
+                  </td>
                   <td className="px-6 py-4">
                     <div className="font-medium text-slate-900 dark:text-white">{product.name}</div>
                     {product.formula && <div className="text-xs text-slate-500 italic">{product.formula}</div>}
@@ -448,7 +551,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete,
               ))}
               {filteredProducts.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-slate-500 dark:text-slate-400">
+                  <td colSpan={8} className="px-6 py-12 text-center text-slate-500 dark:text-slate-400">
                     <div className="flex flex-col items-center justify-center">
                       <AlertCircle size={48} className="mb-2 text-slate-300 dark:text-slate-600" />
                       <p>No products found.</p>
