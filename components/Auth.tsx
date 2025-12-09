@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { User, Shop } from '../types';
+import { User, Shop, BusinessType } from '../types';
 import { Card, Button, Input } from './ui/LayoutComponents';
 import { createShop, loginUser } from '../services/storageService';
-import { Store, MailCheck, ArrowLeft } from 'lucide-react';
+import { Store, MailCheck, ArrowLeft, Stethoscope, Pill, Utensils } from 'lucide-react';
 
 interface AuthProps {
   onLogin: (user: User, shop: Shop) => void;
@@ -20,6 +20,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   // Register State
   const [regData, setRegData] = useState({
     shopName: '',
+    businessType: 'SHOP' as BusinessType,
     adminName: '',
     username: '',
     email: '',
@@ -37,7 +38,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
         onLogin(result.user, result.shop);
       } else {
         // If result is null, it means no user found or auth failed silently (for staff/username flow)
-        setError('Invalid credentials or user not found. If you are a new Shop Admin, please try logging in with your Email address for the first time.');
+        setError('Invalid credentials or user not found. If you are a new Admin, please try logging in with your Email address for the first time.');
       }
     } catch (err: any) {
       // This will catch "Email not confirmed" errors from Supabase
@@ -52,7 +53,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     setError('');
     setLoading(true);
     try {
-      const { shop, user, confirmationRequired } = await createShop(regData.shopName, {
+      const { shop, user, confirmationRequired } = await createShop(regData.shopName, regData.businessType, {
         fullName: regData.adminName,
         username: regData.username,
         email: regData.email,
@@ -109,10 +110,13 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-600 rounded-2xl mb-4 shadow-lg shadow-primary-600/30">
-            <Store className="text-white" size={32} />
+            {regData.businessType === 'CLINIC' ? <Stethoscope className="text-white" size={32} /> :
+             regData.businessType === 'PHARMACY' ? <Pill className="text-white" size={32} /> :
+             regData.businessType === 'RESTAURANT' ? <Utensils className="text-white" size={32} /> :
+             <Store className="text-white" size={32} />}
           </div>
           <h1 className="text-3xl font-bold text-slate-900">ShopMaster AI</h1>
-          <p className="text-slate-500 mt-2">Intelligent Inventory Management</p>
+          <p className="text-slate-500 mt-2">Intelligent Management System</p>
         </div>
 
         <Card className="shadow-xl border-0">
@@ -127,7 +131,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
               className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${mode === 'register' ? 'border-primary-600 text-primary-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
               onClick={() => { setMode('register'); setError(''); }}
             >
-              Create Shop
+              Create Account
             </button>
           </div>
 
@@ -155,14 +159,38 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                 placeholder="Enter password"
               />
               <Button type="submit" className="w-full py-3" disabled={loading}>
-                {loading ? 'Authenticating...' : 'Access Shop'}
+                {loading ? 'Authenticating...' : 'Access System'}
               </Button>
             </form>
           ) : (
             <form onSubmit={handleRegister} className="space-y-4">
+              <div>
+                <label className="mb-1 text-sm font-medium text-slate-700">Business Type</label>
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                   {['SHOP', 'CLINIC', 'PHARMACY', 'RESTAURANT'].map((type) => (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => setRegData({...regData, businessType: type as BusinessType})}
+                        className={`py-2 px-3 rounded-lg text-sm border transition-colors flex items-center justify-center gap-2 ${
+                            regData.businessType === type 
+                            ? 'bg-primary-50 border-primary-500 text-primary-700 font-medium' 
+                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                         {type === 'SHOP' && <Store size={14} />}
+                         {type === 'CLINIC' && <Stethoscope size={14} />}
+                         {type === 'PHARMACY' && <Pill size={14} />}
+                         {type === 'RESTAURANT' && <Utensils size={14} />}
+                         {type.charAt(0) + type.slice(1).toLowerCase()}
+                      </button>
+                   ))}
+                </div>
+              </div>
+
               <Input
-                label="Shop Name"
-                placeholder="e.g., Downtown Electronics"
+                label={regData.businessType === 'CLINIC' ? "Clinic Name" : regData.businessType === 'PHARMACY' ? "Pharmacy Name" : regData.businessType === 'RESTAURANT' ? "Restaurant Name" : "Shop Name"}
+                placeholder="e.g., Downtown Meds"
                 value={regData.shopName}
                 onChange={e => setRegData({...regData, shopName: e.target.value})}
                 required
@@ -199,7 +227,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                 required
               />
               <Button type="submit" className="w-full py-3" disabled={loading}>
-                 {loading ? 'Creating...' : 'Create Shop Account'}
+                 {loading ? 'Creating...' : 'Create Account'}
               </Button>
             </form>
           )}

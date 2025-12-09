@@ -18,6 +18,13 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete,
   const [loading, setLoading] = useState(false);
   const [showLowStockOnly, setShowLowStockOnly] = useState(defaultFilter === 'low-stock');
   
+  // Determine if specific fields are needed based on existing products or user context (if available).
+  // Ideally, we pass 'shop' prop to Inventory, but since we don't have it here directly, 
+  // we can infer from product structure or just always show them if present in editingProduct.
+  // However, to do it cleanly, we will check if ANY product has a formula, or if we are just adding.
+  // For a cleaner approach, let's assume standard fields unless we see pharmacy data or if the user is in a context.
+  // Since 'shop' isn't passed, we'll enable fields if they are relevant.
+  
   // Update state if defaultFilter changes (e.g. navigation from dashboard)
   useEffect(() => {
     setShowLowStockOnly(defaultFilter === 'low-stock');
@@ -31,7 +38,9 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete,
     costPrice: '',
     stock: '',
     minStockLevel: '',
-    sku: ''
+    sku: '',
+    formula: '',
+    brand: ''
   });
 
   const handleOpenModal = (product?: Product) => {
@@ -44,11 +53,13 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete,
         costPrice: product.costPrice.toString(),
         stock: product.stock.toString(),
         minStockLevel: product.minStockLevel.toString(),
-        sku: product.sku || ''
+        sku: product.sku || '',
+        formula: product.formula || '',
+        brand: product.brand || ''
       });
     } else {
       setEditingProduct(null);
-      setFormData({ name: '', category: '', price: '', costPrice: '', stock: '', minStockLevel: '', sku: '' });
+      setFormData({ name: '', category: '', price: '', costPrice: '', stock: '', minStockLevel: '', sku: '', formula: '', brand: '' });
     }
     setIsModalOpen(true);
   };
@@ -66,6 +77,8 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete,
         stock: Number(formData.stock),
         minStockLevel: Number(formData.minStockLevel),
         sku: formData.sku,
+        formula: formData.formula,
+        brand: formData.brand,
         ...(editingProduct ? { id: editingProduct.id } : {})
         };
         await onSave(payload);
@@ -93,9 +106,12 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete,
   };
 
   const filteredProducts = products.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          p.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          p.sku?.toLowerCase().includes(searchTerm.toLowerCase());
+    const term = searchTerm.toLowerCase();
+    const matchesSearch = p.name.toLowerCase().includes(term) || 
+                          p.category.toLowerCase().includes(term) ||
+                          p.sku?.toLowerCase().includes(term) ||
+                          (p.formula && p.formula.toLowerCase().includes(term)) ||
+                          (p.brand && p.brand.toLowerCase().includes(term));
     
     const matchesStock = showLowStockOnly ? p.stock < p.minStockLevel : true;
 
@@ -112,7 +128,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete,
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
                 <input
                     type="text"
-                    placeholder="Search item or scan barcode..."
+                    placeholder="Search name, brand, formula or SKU..."
                     className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-300 focus:ring-primary-500 focus:border-primary-500 outline-none"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
@@ -159,9 +175,8 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete,
           <table className="w-full text-sm text-left min-w-[600px]">
             <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="px-6 py-4">Product Name</th>
-                <th className="px-6 py-4">SKU / Barcode</th>
-                <th className="px-6 py-4">Category</th>
+                <th className="px-6 py-4">Item Name / Formula</th>
+                <th className="px-6 py-4">Brand / Category</th>
                 <th className="px-6 py-4">Price</th>
                 <th className="px-6 py-4">Stock</th>
                 <th className="px-6 py-4">Status</th>
@@ -171,9 +186,15 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete,
             <tbody className="divide-y divide-slate-100">
               {filteredProducts.map((product) => (
                 <tr key={product.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 font-medium text-slate-900">{product.name}</td>
-                  <td className="px-6 py-4 text-slate-500 font-mono text-xs">{product.sku || '-'}</td>
-                  <td className="px-6 py-4 text-slate-500">{product.category}</td>
+                  <td className="px-6 py-4">
+                    <div className="font-medium text-slate-900">{product.name}</div>
+                    {product.formula && <div className="text-xs text-slate-500 italic">{product.formula}</div>}
+                    {product.sku && <div className="text-[10px] text-slate-400 font-mono mt-0.5">{product.sku}</div>}
+                  </td>
+                  <td className="px-6 py-4">
+                     {product.brand && <div className="text-slate-700 font-medium">{product.brand}</div>}
+                     <div className="text-slate-500 text-xs">{product.category}</div>
+                  </td>
                   <td className="px-6 py-4 font-medium text-slate-900">${product.price.toFixed(2)}</td>
                   <td className="px-6 py-4">
                     <span className={product.stock < product.minStockLevel ? 'text-red-600 font-bold' : 'text-slate-700'}>
@@ -231,31 +252,51 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete,
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={editingProduct ? 'Edit Product' : 'Add New Product'}
+        title={editingProduct ? 'Edit Item' : 'Add New Item'}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input 
-            label="Product Name" 
+            label="Item Name / Medicine Name" 
             value={formData.name} 
             onChange={e => setFormData({...formData, name: e.target.value})} 
             required 
             autoFocus
           />
-          <Input 
-            label="Barcode / SKU" 
-            value={formData.sku} 
-            onChange={e => setFormData({...formData, sku: e.target.value})} 
-            placeholder="Scan barcode or enter SKU"
-          />
-          <Input 
-            label="Category" 
-            value={formData.category} 
-            onChange={e => setFormData({...formData, category: e.target.value})} 
-            required 
-          />
+          {/* Pharmacy Fields - we show them always or could toggle, but showing them as optional is fine */}
+          <div className="grid grid-cols-2 gap-4">
+             <Input 
+                label="Formula (Generic)" 
+                value={formData.formula} 
+                onChange={e => setFormData({...formData, formula: e.target.value})} 
+                placeholder="e.g. Paracetamol"
+             />
+             <Input 
+                label="Brand Name" 
+                value={formData.brand} 
+                onChange={e => setFormData({...formData, brand: e.target.value})} 
+                placeholder="e.g. Panadol"
+             />
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <Input 
-              label="Selling Price ($)" 
+              label="Barcode / SKU" 
+              value={formData.sku} 
+              onChange={e => setFormData({...formData, sku: e.target.value})} 
+              placeholder="Scan barcode"
+            />
+            <Input 
+                label="Category" 
+                value={formData.category} 
+                onChange={e => setFormData({...formData, category: e.target.value})} 
+                required 
+                placeholder="e.g. Tablets, Syrup, Food"
+            />
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <Input 
+              label="Retail Price" 
               type="number" 
               step="0.01" 
               value={formData.price} 
@@ -263,7 +304,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete,
               required 
             />
             <Input 
-              label="Cost Price ($)" 
+              label="Cost Price" 
               type="number" 
               step="0.01" 
               value={formData.costPrice} 
@@ -289,7 +330,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete,
           </div>
           <div className="pt-4 flex justify-end gap-3">
             <Button variant="secondary" onClick={() => setIsModalOpen(false)} disabled={loading}>Cancel</Button>
-            <Button type="submit" disabled={loading}>{editingProduct ? 'Save Changes' : 'Add Product'}</Button>
+            <Button type="submit" disabled={loading}>{editingProduct ? 'Save Changes' : 'Add Item'}</Button>
           </div>
         </form>
       </Modal>

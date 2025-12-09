@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, FileText, Calendar, User as UserIcon, Package, ArrowUpRight } from 'lucide-react';
+import { Search, FileText, Calendar, User as UserIcon, Package, ArrowUpRight, Download } from 'lucide-react';
 import { Sale, Shop } from '../types';
 import { Card, Button, Input } from './ui/LayoutComponents';
 import { jsPDF } from 'jspdf';
@@ -17,7 +17,9 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, shop, currency }) =>
 
   const filteredSales = sales.filter(sale => 
     sale.invoiceId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    sale.sellerName.toLowerCase().includes(searchTerm.toLowerCase())
+    sale.sellerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (sale.patientName && sale.patientName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (sale.customerName && sale.customerName.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const formatDate = (timestamp: number) => {
@@ -25,6 +27,44 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, shop, currency }) =>
       dateStyle: 'medium',
       timeStyle: 'short'
     });
+  };
+
+  const generateDailyReport = async () => {
+      const doc = new jsPDF();
+      const today = new Date().toLocaleDateString();
+      const reportDate = new Date();
+      
+      doc.setFontSize(18);
+      doc.text(`${shop.name} - Daily Sales Report`, 14, 20);
+      doc.setFontSize(10);
+      doc.text(`Date: ${today}`, 14, 26);
+      doc.text(`Type: ${shop.businessType}`, 14, 32);
+
+      // Filter sales for today (roughly)
+      const todaySales = sales.filter(s => new Date(s.timestamp).toLocaleDateString() === today);
+      
+      const tableData = todaySales.map(s => {
+          let extra = '';
+          if (s.patientName) extra = `Pt: ${s.patientName}`;
+          else if (s.customerName) extra = `Cust: ${s.customerName}`;
+          
+          return [
+              s.invoiceId,
+              new Date(s.timestamp).toLocaleTimeString(),
+              extra,
+              s.items.length.toString(),
+              `${currency}${s.totalAmount.toFixed(2)}`
+          ];
+      });
+
+      autoTable(doc, {
+          startY: 40,
+          head: [['Invoice', 'Time', 'Details', 'Items', 'Amount']],
+          body: tableData,
+          foot: [['', '', '', 'Total Revenue', `${currency}${todaySales.reduce((a,c) => a + c.totalAmount, 0).toFixed(2)}`]]
+      });
+
+      doc.save(`daily_report_${today.replace(/\//g, '-')}.pdf`);
   };
 
   const handleReprint = async (sale: Sale) => {
@@ -70,7 +110,22 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, shop, currency }) =>
     doc.text(`Invoice #: ${sale.invoiceId}`, 14, metaStartY);
     doc.text(`Date: ${new Date(sale.timestamp).toLocaleString()}`, 14, metaStartY + 6);
     doc.text(`Cashier: ${sale.sellerName}`, 14, metaStartY + 12);
-    doc.text(`Status: Paid`, 14, metaStartY + 18);
+    
+    let customY = metaStartY + 18;
+    if (sale.patientName) {
+         doc.text(`Patient: ${sale.patientName}`, 14, customY);
+         customY += 6;
+    }
+    if (sale.diagnosis) {
+         doc.text(`Diagnosis: ${sale.diagnosis}`, 14, customY);
+         customY += 6;
+    }
+    if (sale.customerName) {
+         doc.text(`Customer: ${sale.customerName}`, 14, customY);
+         customY += 6;
+    }
+    
+    doc.text(`Status: Paid`, 14, customY);
 
     const tableData = sale.items.map(item => [
       item.productName,
@@ -80,7 +135,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, shop, currency }) =>
     ]);
 
     autoTable(doc, {
-      startY: metaStartY + 25,
+      startY: customY + 10,
       head: [['Item', 'Qty', 'Price', 'Total']],
       body: tableData,
       theme: 'grid',
@@ -101,17 +156,22 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, shop, currency }) =>
       <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Order History</h2>
-          <p className="text-slate-500 dark:text-slate-400">View and manage past sales invoices</p>
+          <p className="text-slate-500 dark:text-slate-400">View past dispensed items and sales</p>
         </div>
-        <div className="relative w-full sm:w-auto min-w-[300px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-          <input
-            type="text"
-            placeholder="Search invoice # or cashier..."
-            className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+        <div className="flex gap-2 w-full sm:w-auto">
+             <Button variant="secondary" onClick={generateDailyReport} className="whitespace-nowrap">
+                 <Download size={16} className="mr-2 inline" /> Daily Report
+             </Button>
+            <div className="relative w-full sm:w-auto min-w-[250px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+              <input
+                type="text"
+                placeholder="Search invoice, patient or cashier..."
+                className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
         </div>
       </div>
 
@@ -124,6 +184,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, shop, currency }) =>
                         <thead className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400">
                             <tr>
                                 <th className="px-6 py-4 font-medium">Invoice Info</th>
+                                <th className="px-6 py-4 font-medium">Customer / Patient</th>
                                 <th className="px-6 py-4 font-medium">Items</th>
                                 <th className="px-6 py-4 font-medium">Total</th>
                                 <th className="px-6 py-4 font-medium text-right">Action</th>
@@ -150,6 +211,9 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, shop, currency }) =>
                                             </div>
                                         </div>
                                     </td>
+                                    <td className="px-6 py-4 text-slate-700 dark:text-slate-300">
+                                        {sale.patientName ? sale.patientName : (sale.customerName || 'Walk-in')}
+                                    </td>
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
                                             <Package size={16} />
@@ -166,8 +230,8 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, shop, currency }) =>
                             ))}
                             {filteredSales.length === 0 && (
                                 <tr>
-                                    <td colSpan={4} className="px-6 py-12 text-center text-slate-400">
-                                        No invoices found matching your search.
+                                    <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
+                                        No records found.
                                     </td>
                                 </tr>
                             )}
@@ -183,31 +247,53 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, shop, currency }) =>
                 <Card className="sticky top-6 animate-[fadeIn_0.2s_ease-out]">
                     <div className="flex justify-between items-start mb-6 border-b border-slate-100 dark:border-slate-700 pb-4">
                         <div>
-                            <h3 className="font-bold text-lg text-slate-900 dark:text-white">Invoice Details</h3>
+                            <h3 className="font-bold text-lg text-slate-900 dark:text-white">Details</h3>
                             <p className="text-sm text-primary-600 dark:text-primary-400">{selectedSale.invoiceId}</p>
                         </div>
                         <Button variant="secondary" onClick={() => handleReprint(selectedSale)} className="text-xs">
-                             Download PDF
+                             Reprint
                         </Button>
                     </div>
 
                     <div className="space-y-4 mb-6">
                         <div className="flex justify-between text-sm">
-                            <span className="text-slate-500 dark:text-slate-400">Date Issued</span>
+                            <span className="text-slate-500 dark:text-slate-400">Date</span>
                             <span className="font-medium text-slate-900 dark:text-white">{formatDate(selectedSale.timestamp)}</span>
                         </div>
                         <div className="flex justify-between text-sm">
                             <span className="text-slate-500 dark:text-slate-400">Cashier</span>
                             <span className="font-medium text-slate-900 dark:text-white">{selectedSale.sellerName}</span>
                         </div>
-                         <div className="flex justify-between text-sm">
-                            <span className="text-slate-500 dark:text-slate-400">Payment Status</span>
-                            <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium">Paid</span>
-                        </div>
+                        
+                        {/* Dynamic fields */}
+                        {selectedSale.patientName && (
+                             <div className="flex justify-between text-sm">
+                                <span className="text-slate-500 dark:text-slate-400">Patient</span>
+                                <span className="font-medium text-slate-900 dark:text-white">{selectedSale.patientName}</span>
+                            </div>
+                        )}
+                         {selectedSale.diagnosis && (
+                             <div className="flex justify-between text-sm">
+                                <span className="text-slate-500 dark:text-slate-400">Diagnosis</span>
+                                <span className="font-medium text-slate-900 dark:text-white truncate max-w-[150px]" title={selectedSale.diagnosis}>{selectedSale.diagnosis}</span>
+                            </div>
+                        )}
+                        {selectedSale.customerName && !selectedSale.patientName && (
+                             <div className="flex justify-between text-sm">
+                                <span className="text-slate-500 dark:text-slate-400">Customer</span>
+                                <span className="font-medium text-slate-900 dark:text-white">{selectedSale.customerName}</span>
+                            </div>
+                        )}
+                         {selectedSale.customerContact && (
+                             <div className="flex justify-between text-sm">
+                                <span className="text-slate-500 dark:text-slate-400">Contact</span>
+                                <span className="font-medium text-slate-900 dark:text-white">{selectedSale.customerContact}</span>
+                            </div>
+                        )}
                     </div>
 
                     <div className="space-y-3 mb-6">
-                        <p className="text-xs font-semibold uppercase text-slate-400 tracking-wider">Purchased Items</p>
+                        <p className="text-xs font-semibold uppercase text-slate-400 tracking-wider">Items Dispensed</p>
                         {selectedSale.items.map((item, idx) => (
                             <div key={idx} className="flex justify-between items-center text-sm">
                                 <div>
@@ -222,7 +308,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, shop, currency }) =>
                     </div>
 
                     <div className="pt-4 border-t border-slate-100 dark:border-slate-700 flex justify-between items-center">
-                        <span className="font-bold text-slate-800 dark:text-white">Total Paid</span>
+                        <span className="font-bold text-slate-800 dark:text-white">Total</span>
                         <span className="font-bold text-xl text-primary-600 dark:text-primary-400">
                             {currency}{selectedSale.totalAmount.toFixed(2)}
                         </span>
@@ -231,7 +317,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, shop, currency }) =>
             ) : (
                 <div className="h-full flex flex-col items-center justify-center p-8 text-center text-slate-400 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-800/50 min-h-[300px]">
                     <FileText size={48} className="mb-4 opacity-20" />
-                    <p>Select an invoice from the list to view full details.</p>
+                    <p>Select a record to view details.</p>
                 </div>
             )}
         </div>

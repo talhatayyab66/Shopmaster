@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient';
-import { User, Shop, Product, Sale, UserRole, Message } from '../types';
+import { User, Shop, Product, Sale, UserRole, Message, BusinessType } from '../types';
 
 // Helper to generate IDs client-side
 const generateId = () => crypto.randomUUID();
@@ -35,7 +35,7 @@ export const createUser = async (user: Omit<User, 'id'>): Promise<User> => {
   return newUser;
 };
 
-export const createShop = async (shopName: string, adminData: { fullName: string; username: string; email: string; password: string }) => {
+export const createShop = async (shopName: string, businessType: BusinessType, adminData: { fullName: string; username: string; email: string; password: string }) => {
   // 1. Register Admin in Supabase Auth
   // We include shop_name in metadata so we can create the shop record later if email confirmation interrupts the flow
   const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -45,7 +45,8 @@ export const createShop = async (shopName: string, adminData: { fullName: string
       data: {
         full_name: adminData.fullName,
         username: adminData.username,
-        shop_name: shopName
+        shop_name: shopName,
+        business_type: businessType
       }
     }
   });
@@ -73,6 +74,7 @@ export const createShop = async (shopName: string, adminData: { fullName: string
     ownerId: userId,
     createdAt: Date.now(),
     currency: '$',
+    businessType: businessType
   };
 
   const dbShop = {
@@ -80,7 +82,8 @@ export const createShop = async (shopName: string, adminData: { fullName: string
     name: newShop.name,
     owner_id: newShop.ownerId,
     created_at: newShop.createdAt,
-    currency: '$'
+    currency: '$',
+    business_type: businessType
   };
 
   // 3. Create Admin User Profile in public table
@@ -121,6 +124,7 @@ export const updateShop = async (shop: Partial<Shop> & { id: string }) => {
   if (shop.address) updates.address = shop.address;
   if (shop.currency) updates.currency = shop.currency;
   if (shop.logoUrl) updates.logo_url = shop.logoUrl;
+  // Business Type typically doesn't change after creation for data consistency, but could be added here.
 
   const { error } = await supabase
     .from('shops')
@@ -149,6 +153,7 @@ export const subscribeToShopUpdates = (shopId: string, callback: (shopUpdates: P
           address: newData.address,
           currency: newData.currency,
           logoUrl: newData.logo_url,
+          businessType: newData.business_type
         };
         callback(updates);
       }
@@ -189,7 +194,6 @@ export const loginUser = async (identifier: string, password: string): Promise<{
     });
 
     if (error) {
-      // Supabase specific errors (e.g. Email not confirmed, Invalid login)
       throw new Error(error.message);
     }
 
@@ -197,7 +201,7 @@ export const loginUser = async (identifier: string, password: string): Promise<{
       userId = data.user.id;
 
       // Check if the public user profile exists
-      const { data: userData, error: userError } = await supabase
+      const { data: userData } = await supabase
         .from('users')
         .select('*')
         .eq('id', userId)
@@ -208,7 +212,6 @@ export const loginUser = async (identifier: string, password: string): Promise<{
         console.log("User authenticated in Auth but missing public profile. Attempting deferred creation.");
         const metadata = data.user.user_metadata;
 
-        // Check if we have the necessary metadata to create the profile
         if (metadata && metadata.shop_name) {
           try {
             const shopId = generateId();
@@ -219,6 +222,7 @@ export const loginUser = async (identifier: string, password: string): Promise<{
               ownerId: userId,
               createdAt: Date.now(),
               currency: '$',
+              businessType: metadata.business_type || 'SHOP'
             };
 
             const newUser: User = {
@@ -237,13 +241,11 @@ export const loginUser = async (identifier: string, password: string): Promise<{
               name: newShop.name,
               owner_id: newShop.ownerId,
               created_at: newShop.createdAt,
-              currency: newShop.currency
+              currency: newShop.currency,
+              business_type: newShop.businessType
             });
 
-            if (shopInsertError) {
-              console.error("Shop Insert Error:", shopInsertError);
-              throw new Error("Failed to initialize shop: " + shopInsertError.message);
-            }
+            if (shopInsertError) throw new Error("Failed to initialize shop: " + shopInsertError.message);
 
             // Insert User
             const { error: userInsertError } = await supabase.from('users').insert({
@@ -256,22 +258,15 @@ export const loginUser = async (identifier: string, password: string): Promise<{
               full_name: newUser.fullName
             });
 
-            if (userInsertError) {
-               console.error("User Insert Error:", userInsertError);
-               throw new Error("Failed to initialize user profile: " + userInsertError.message);
-            }
+            if (userInsertError) throw new Error("Failed to initialize user profile: " + userInsertError.message);
 
-            console.log("Deferred creation successful");
             return { user: newUser, shop: newShop };
 
           } catch (creationError: any) {
-            console.error("Deferred creation failed:", creationError);
             throw new Error(creationError.message);
           }
         } else {
-           // User authenticated but no profile and NO METADATA
-           console.error("Missing metadata for new user:", data.user);
-           throw new Error("Account exists, but profile setup is incomplete. Please contact support or try creating the shop again.");
+           throw new Error("Account exists, but profile setup is incomplete.");
         }
       }
     }
@@ -279,29 +274,22 @@ export const loginUser = async (identifier: string, password: string): Promise<{
 
   // Case 2: Username Login (Staff OR Admin fallback)
   if (!userId && !isEmail) {
-    // 1. Find user by username
-    const { data: userByUsername, error: usernameError } = await supabase
+    const { data: userByUsername } = await supabase
       .from('users')
       .select('*')
       .eq('username', identifier)
       .single();
 
     if (userByUsername) {
-      // 2a. If Admin, we must authenticate via Email/Password through Supabase Auth
       if (userByUsername.role === UserRole.ADMIN) {
         if (userByUsername.email) {
           const { data, error } = await supabase.auth.signInWithPassword({
             email: userByUsername.email,
             password: password
           });
-          
-          if (!error && data.user) {
-            userId = data.user.id;
-          }
-          // If error, userId remains null, function returns null, triggering invalid credentials
+          if (!error && data.user) userId = data.user.id;
         }
       } 
-      // 2b. If Sales/Staff, verify simple password hash
       else if (userByUsername.password_hash === password) {
         userId = userByUsername.id;
       }
@@ -310,7 +298,6 @@ export const loginUser = async (identifier: string, password: string): Promise<{
 
   if (!userId) return null;
 
-  // Final Fetch for existing users (Admin or Staff)
   const { data: userData, error: userError } = await supabase
     .from('users')
     .select('*')
@@ -318,9 +305,7 @@ export const loginUser = async (identifier: string, password: string): Promise<{
     .single();
   
   if (userError || !userData) {
-      if (isEmail) {
-          throw new Error("User profile not found in database.");
-      }
+      if (isEmail) throw new Error("User profile not found in database.");
       return null;
   }
 
@@ -330,9 +315,7 @@ export const loginUser = async (identifier: string, password: string): Promise<{
     .eq('id', userData.shop_id)
     .single();
 
-  if (shopError || !shopData) {
-      throw new Error("Shop data not found.");
-  }
+  if (shopError || !shopData) throw new Error("Shop data not found.");
 
   const user: User = {
     id: userData.id,
@@ -351,7 +334,8 @@ export const loginUser = async (identifier: string, password: string): Promise<{
     createdAt: Number(shopData.created_at),
     address: shopData.address,
     currency: shopData.currency || '$',
-    logoUrl: shopData.logo_url
+    logoUrl: shopData.logo_url,
+    businessType: shopData.business_type || 'SHOP'
   };
 
   return { user, shop };
@@ -404,7 +388,9 @@ export const getProducts = async (shopId: string): Promise<Product[]> => {
     costPrice: Number(p.cost_price),
     stock: Number(p.stock),
     minStockLevel: Number(p.min_stock_level),
-    sku: p.sku
+    sku: p.sku,
+    formula: p.formula, // Pharmacy specific
+    brand: p.brand      // Pharmacy specific
   }));
 };
 
@@ -421,7 +407,9 @@ export const saveProduct = async (product: Omit<Product, 'id'> & { id?: string }
     cost_price: product.costPrice,
     stock: product.stock,
     min_stock_level: product.minStockLevel,
-    sku: product.sku
+    sku: product.sku,
+    formula: product.formula,
+    brand: product.brand
   };
 
   if (isUpdate) {
@@ -474,7 +462,13 @@ export const createSale = async (saleData: Omit<Sale, 'id'>) => {
     items: saleData.items, // JSONB
     total_amount: saleData.totalAmount,
     timestamp: saleData.timestamp,
-    invoice_id: saleData.invoiceId
+    invoice_id: saleData.invoiceId,
+    // New Fields
+    patient_name: saleData.patientName,
+    diagnosis: saleData.diagnosis,
+    customer_name: saleData.customerName,
+    customer_age: saleData.customerAge,
+    customer_contact: saleData.customerContact
   };
 
   const { error } = await supabase.from('sales').insert(dbSale);
@@ -500,7 +494,12 @@ export const getSales = async (shopId: string): Promise<Sale[]> => {
     items: s.items,
     totalAmount: Number(s.total_amount),
     timestamp: Number(s.timestamp),
-    invoiceId: s.invoice_id
+    invoiceId: s.invoice_id,
+    patientName: s.patient_name,
+    diagnosis: s.diagnosis,
+    customerName: s.customer_name,
+    customerAge: s.customer_age,
+    customerContact: s.customer_contact
   }));
 };
 
@@ -583,22 +582,6 @@ export const deleteChatMessage = async (messageId: string) => {
 
 export const markMessagesAsRead = async (messageIds: string[], userId: string) => {
   if (messageIds.length === 0) return;
-
-  // Ideally this would be a specialized RPC call to append to array efficiently, 
-  // but for simplicity we will loop or assume the backend handles it.
-  // We can't do a bulk update with array_append in the simple JS client easily without RLS policies permitting it.
-  // We will assume the existence of a stored procedure or just update the client for now.
-  // Workaround: We will rely on fetching and updating, or just sending a signal.
-  // Note: Due to limitations in the standard JS client for array modification, this implementation 
-  // assumes the DB handles 'read_by' merges or we replace the array.
-  
-  // Since we cannot write SQL here, we will iterate and update (inefficient but works for small scale)
-  // or skip if we assume the user cannot run migrations.
-  
-  // Attempting to use a raw query-like update for the specific messages
-  // Since we can't reliably append without race conditions in pure client update,
-  // we will try to fetch specific messages, add ID locally, and push back.
-  
   const { data: messages } = await supabase
     .from('chat_messages')
     .select('id, read_by')

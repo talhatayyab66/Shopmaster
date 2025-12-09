@@ -4,6 +4,8 @@ export enum UserRole {
   SALES = 'SALES'
 }
 
+export type BusinessType = 'SHOP' | 'CLINIC' | 'PHARMACY' | 'RESTAURANT';
+
 export interface Shop {
   id: string;
   name: string;
@@ -12,6 +14,7 @@ export interface Shop {
   address?: string;
   currency?: string;
   logoUrl?: string;
+  businessType: BusinessType;
 }
 
 export interface User {
@@ -34,6 +37,9 @@ export interface Product {
   stock: number;
   minStockLevel: number;
   sku?: string;
+  // Pharmacy/Clinic specific
+  formula?: string; // Generic Name
+  brand?: string;
 }
 
 export interface CartItem extends Product {
@@ -57,6 +63,13 @@ export interface Sale {
   totalAmount: number;
   timestamp: number;
   invoiceId: string;
+  
+  // Specific Fields
+  patientName?: string;
+  diagnosis?: string;
+  customerName?: string;
+  customerAge?: string;
+  customerContact?: string;
 }
 
 export interface Message {

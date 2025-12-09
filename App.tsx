@@ -189,7 +189,8 @@ const App = () => {
               createdAt: Number(shopData.created_at),
               address: shopData.address,
               currency: shopData.currency || '$',
-              logoUrl: shopData.logo_url
+              logoUrl: shopData.logo_url,
+              businessType: shopData.business_type || 'SHOP'
             });
           }
         }
@@ -285,7 +286,8 @@ const App = () => {
             name: latestShop.name,
             address: latestShop.address,
             currency: latestShop.currency || '$',
-            logoUrl: latestShop.logo_url
+            logoUrl: latestShop.logo_url,
+            businessType: latestShop.business_type || 'SHOP'
           }) : null);
         }
       }
@@ -314,7 +316,7 @@ const App = () => {
     await refreshData();
   };
 
-  const handleCompleteSale = async (items: any[], total: number) => {
+  const handleCompleteSale = async (items: any[], total: number, extras?: any) => {
     if (!shop || !user) return;
     
     const saleData = {
@@ -330,7 +332,8 @@ const App = () => {
       })),
       totalAmount: total,
       timestamp: Date.now(),
-      invoiceId: `INV-${Date.now().toString().slice(-6)}`
+      invoiceId: `INV-${Date.now().toString().slice(-6)}`,
+      ...extras
     };
 
     await createSale(saleData);
