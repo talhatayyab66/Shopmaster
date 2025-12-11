@@ -446,6 +446,7 @@ const App = () => {
             toggleTheme={toggleTheme}
             themeColor={themeColor}
             setThemeColor={setThemeColor}
+            onLogout={handleLogout}
           />
         );
       default:

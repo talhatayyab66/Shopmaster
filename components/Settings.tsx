@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { User, Shop, UserRole } from '../types';
 import { Card, Button, Input } from './ui/LayoutComponents';
 import { updateShop, uploadShopLogo } from '../services/storageService';
-import { Moon, Sun, Upload, Save, Store, Palette, SlidersHorizontal } from 'lucide-react';
+import { Moon, Sun, Upload, Save, Store, Palette, SlidersHorizontal, LogOut } from 'lucide-react';
 
 interface SettingsProps {
   user: User;
@@ -12,6 +12,7 @@ interface SettingsProps {
   toggleTheme: () => void;
   themeColor: string;
   setThemeColor: (color: string) => void;
+  onLogout: () => void;
 }
 
 const Settings: React.FC<SettingsProps> = ({ 
@@ -21,7 +22,8 @@ const Settings: React.FC<SettingsProps> = ({
   isDarkMode, 
   toggleTheme,
   themeColor,
-  setThemeColor
+  setThemeColor,
+  onLogout
 }) => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -61,6 +63,23 @@ const Settings: React.FC<SettingsProps> = ({
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Settings</h2>
+
+      {/* Account - Mobile Only */}
+      <div className="md:hidden">
+        <Card>
+            <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4">Account</h3>
+            <div className="flex items-center justify-between">
+                <div>
+                    <p className="font-medium text-slate-900 dark:text-white">{user.fullName}</p>
+                    <p className="text-sm text-slate-500">@{user.username}</p>
+                </div>
+                <Button variant="danger" onClick={onLogout}>
+                    <LogOut size={18} className="mr-2 inline" />
+                    Sign Out
+                </Button>
+            </div>
+        </Card>
+      </div>
 
       {/* App Preferences */}
       <Card>
