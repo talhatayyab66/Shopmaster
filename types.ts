@@ -45,6 +45,7 @@ export interface Product {
 export interface CartItem extends Product {
   quantity: number;
   discount?: number; // Percentage discount (0-100)
+  isService?: boolean; // For fees/charges that don't track stock
 }
 
 export interface SaleItem {

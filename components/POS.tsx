@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Search, Plus, Minus, Trash2, Printer, CheckCircle, ScanBarcode, User as UserIcon, Activity, Phone, Utensils, Stethoscope, ShoppingBag, Package, Percent } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, Printer, CheckCircle, ScanBarcode, User as UserIcon, Activity, Phone, Utensils, Stethoscope, ShoppingBag, Package, Percent, DollarSign, FilePlus } from 'lucide-react';
 import { Product, CartItem, User, Shop } from '../types';
 import { Card, Button, Input } from './ui/LayoutComponents';
 import { jsPDF } from 'jspdf';
@@ -25,6 +25,12 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
       age: '',
       contact: '',
       diagnosis: ''
+  });
+
+  // Clinic Specific Charges
+  const [clinicFees, setClinicFees] = useState({
+    consultation: '',
+    procedures: ''
   });
 
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -62,6 +68,27 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
         if (newQty > product.stock) return item; 
         if (newQty < 1) return item;
         return { ...item, quantity: newQty };
+      }
+      return item;
+    }));
+  };
+
+  const updateQuantityExact = (id: string, value: string) => {
+    const qty = parseInt(value);
+    if (isNaN(qty)) return;
+
+    setCart(cart.map(item => {
+      if (item.id === id) {
+        const product = products.find(p => p.id === id);
+        if (!product) return item;
+
+        // Allow typing, but validate max stock
+        if (qty > product.stock) {
+             alert(`Max stock available is ${product.stock}`);
+             return { ...item, quantity: product.stock };
+        }
+        if (qty < 1) return { ...item, quantity: 1 };
+        return { ...item, quantity: qty };
       }
       return item;
     }));
@@ -105,9 +132,15 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
     return item.price * (1 - discount / 100);
   };
 
-  const cartTotal = cart.reduce((acc, item) => acc + (getDiscountedPrice(item) * item.quantity), 0);
+  // Calculate Totals
+  const itemsTotal = cart.reduce((acc, item) => acc + (getDiscountedPrice(item) * item.quantity), 0);
+  
+  const consultationFee = Number(clinicFees.consultation) || 0;
+  const procedureCharges = Number(clinicFees.procedures) || 0;
+  
+  const finalTotal = itemsTotal + consultationFee + procedureCharges;
 
-  const generatePDF = async (items: CartItem[], total: number, invoiceId: string) => {
+  const generatePDF = async (items: CartItem[], total: number, invoiceId: string, fees: {consultation: number, procedures: number}) => {
     const doc = new jsPDF();
     
     const loadImage = (url: string): Promise<HTMLImageElement> => {
@@ -194,6 +227,14 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
       ];
     });
 
+    // Add Fee Rows if applicable
+    if (fees.consultation > 0) {
+        tableData.push(['Consultation Fee', '1', `${currency}${fees.consultation.toFixed(2)}`, `${currency}${fees.consultation.toFixed(2)}`]);
+    }
+    if (fees.procedures > 0) {
+        tableData.push(['Procedure/Service Charges', '1', `${currency}${fees.procedures.toFixed(2)}`, `${currency}${fees.procedures.toFixed(2)}`]);
+    }
+
     autoTable(doc, {
       startY: customFieldY + 4,
       head: [['Item', 'Qty', 'Price', 'Total']],
@@ -217,7 +258,7 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
   };
 
   const handleCheckout = async () => {
-    if (cart.length === 0) return;
+    if (cart.length === 0 && finalTotal === 0) return;
     setLoading(true);
     
     const invoiceId = `INV-${Math.floor(Math.random() * 1000000)}`;
@@ -227,6 +268,39 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
        ...item,
        price: getDiscountedPrice(item) // Override price with discounted price for sales record
     }));
+
+    // Add Fees as pseudo-items for the backend record
+    if (consultationFee > 0) {
+        processedCart.push({
+            id: 'FEE-CONSULTATION',
+            shopId: shop.id,
+            name: 'Consultation Fee',
+            category: 'Service',
+            price: consultationFee,
+            costPrice: 0,
+            stock: 9999, // infinite stock
+            minStockLevel: 0,
+            quantity: 1,
+            discount: 0,
+            isService: true
+        });
+    }
+
+    if (procedureCharges > 0) {
+        processedCart.push({
+            id: 'FEE-PROCEDURES',
+            shopId: shop.id,
+            name: 'Procedures & Charges',
+            category: 'Service',
+            price: procedureCharges,
+            costPrice: 0,
+            stock: 9999,
+            minStockLevel: 0,
+            quantity: 1,
+            discount: 0,
+            isService: true
+        });
+    }
 
     // Prepare Sale Data with extra fields
     const saleExtras: any = {};
@@ -242,15 +316,16 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
     }
 
     try {
-        await (onCompleteSale as any)(processedCart, cartTotal, saleExtras);
+        await (onCompleteSale as any)(processedCart, finalTotal, saleExtras);
         
         try {
-          await generatePDF(cart, cartTotal, invoiceId);
+          await generatePDF(cart, finalTotal, invoiceId, { consultation: consultationFee, procedures: procedureCharges });
         } catch (e) {
           console.error("PDF Generation failed", e);
         }
         
         setCart([]);
+        setClinicFees({ consultation: '', procedures: '' });
         setCustomerData({ name: '', age: '', contact: '', diagnosis: '' });
         setIsSuccess(true);
         setTimeout(() => setIsSuccess(false), 3000);
@@ -264,7 +339,10 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
 
   // UI for Customer/Patient Details
   const renderCustomerFields = () => {
-      if (shop.businessType === 'CLINIC' || shop.businessType === 'PHARMACY') {
+      const isClinic = shop.businessType === 'CLINIC';
+      const isPharmacy = shop.businessType === 'PHARMACY';
+
+      if (isClinic || isPharmacy) {
           return (
               <div className="space-y-3 mb-4 p-3 bg-blue-50 dark:bg-slate-800/50 rounded-lg border border-blue-100 dark:border-slate-700">
                   <h3 className="text-sm font-semibold text-blue-800 dark:text-blue-300 flex items-center gap-2">
@@ -282,6 +360,39 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
                      onChange={e => setCustomerData({...customerData, diagnosis: e.target.value})}
                      className="bg-white"
                   />
+
+                  {isClinic && (
+                      <div className="grid grid-cols-2 gap-3 pt-2 border-t border-blue-100 dark:border-slate-700">
+                          <div>
+                              <label className="text-xs text-slate-500 font-medium mb-1 block">Consultation Fee</label>
+                              <div className="relative">
+                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">{currency}</span>
+                                  <input 
+                                    type="number"
+                                    min="0"
+                                    placeholder="0.00"
+                                    value={clinicFees.consultation}
+                                    onChange={e => setClinicFees({...clinicFees, consultation: e.target.value})}
+                                    className="w-full pl-7 pr-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-primary-500 focus:border-primary-500 outline-none"
+                                  />
+                              </div>
+                          </div>
+                          <div>
+                              <label className="text-xs text-slate-500 font-medium mb-1 block">Other Charges</label>
+                              <div className="relative">
+                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">{currency}</span>
+                                  <input 
+                                    type="number"
+                                    min="0"
+                                    placeholder="0.00"
+                                    value={clinicFees.procedures}
+                                    onChange={e => setClinicFees({...clinicFees, procedures: e.target.value})}
+                                    className="w-full pl-7 pr-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-primary-500 focus:border-primary-500 outline-none"
+                                  />
+                              </div>
+                          </div>
+                      </div>
+                  )}
               </div>
           );
       } else if (shop.businessType === 'RESTAURANT') {
@@ -419,7 +530,7 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
                 </h2>
                 <p className="text-xs text-slate-500 dark:text-slate-400">{cart.length} Items</p>
               </div>
-              <div className="font-bold text-xl text-primary-600 dark:text-primary-400">{currency}{cartTotal.toFixed(2)}</div>
+              <div className="font-bold text-xl text-primary-600 dark:text-primary-400">{currency}{finalTotal.toFixed(2)}</div>
             </div>
 
             <div className="p-4 border-b border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0">
@@ -459,13 +570,39 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
                      
                      <div className="flex items-center bg-slate-100 dark:bg-slate-600 rounded-lg">
                         <button onClick={() => updateQuantity(item.id, -1)} className="p-1 hover:text-primary-600 dark:hover:text-primary-300 text-slate-600 dark:text-slate-300"><Minus size={14} /></button>
-                        <span className="w-8 text-center text-sm font-medium text-slate-800 dark:text-white">{item.quantity}</span>
+                        <input 
+                            type="number"
+                            min="1"
+                            max={item.stock}
+                            value={item.quantity}
+                            onChange={(e) => updateQuantityExact(item.id, e.target.value)}
+                            className="w-12 text-center text-sm font-medium text-slate-800 dark:text-white bg-transparent border-0 outline-none p-0 appearance-none"
+                        />
                         <button onClick={() => updateQuantity(item.id, 1)} className="p-1 hover:text-primary-600 dark:hover:text-primary-300 text-slate-600 dark:text-slate-300"><Plus size={14} /></button>
                      </div>
                   </div>
                 </div>
               ))}
-              {cart.length === 0 && (
+
+              {/* Fee Summaries in Cart List */}
+              {(consultationFee > 0 || procedureCharges > 0) && (
+                  <div className="border-t border-dashed border-slate-200 dark:border-slate-700 pt-3 mt-2">
+                      {consultationFee > 0 && (
+                          <div className="flex justify-between text-sm py-1">
+                              <span className="text-slate-600 dark:text-slate-300">Consultation</span>
+                              <span className="font-medium text-slate-900 dark:text-white">{currency}{consultationFee.toFixed(2)}</span>
+                          </div>
+                      )}
+                      {procedureCharges > 0 && (
+                          <div className="flex justify-between text-sm py-1">
+                              <span className="text-slate-600 dark:text-slate-300">Procedures</span>
+                              <span className="font-medium text-slate-900 dark:text-white">{currency}{procedureCharges.toFixed(2)}</span>
+                          </div>
+                      )}
+                  </div>
+              )}
+
+              {cart.length === 0 && consultationFee === 0 && procedureCharges === 0 && (
                 <div className="h-full flex flex-col items-center justify-center text-slate-400 py-8">
                   <Printer size={32} className="mb-2 opacity-50" />
                   <p className="text-sm">List is empty</p>
@@ -476,7 +613,7 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
             <div className="p-4 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 shrink-0">
               <Button 
                 onClick={handleCheckout} 
-                disabled={cart.length === 0 || loading} 
+                disabled={(cart.length === 0 && finalTotal === 0) || loading} 
                 className="w-full flex items-center justify-center py-3 text-lg"
               >
                 {isSuccess ? <CheckCircle className="mr-2" /> : <Printer className="mr-2" />}
