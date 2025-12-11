@@ -44,6 +44,7 @@ export interface Product {
 
 export interface CartItem extends Product {
   quantity: number;
+  discount?: number; // Percentage discount (0-100)
 }
 
 export interface SaleItem {

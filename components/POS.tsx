@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Search, Plus, Minus, Trash2, Printer, CheckCircle, ScanBarcode, User as UserIcon, Activity, Phone, Utensils, Stethoscope, ShoppingBag, Package } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, Printer, CheckCircle, ScanBarcode, User as UserIcon, Activity, Phone, Utensils, Stethoscope, ShoppingBag, Package, Percent } from 'lucide-react';
 import { Product, CartItem, User, Shop } from '../types';
 import { Card, Button, Input } from './ui/LayoutComponents';
 import { jsPDF } from 'jspdf';
@@ -48,7 +48,7 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
         alert('Not enough stock!');
       }
     } else {
-      setCart([...cart, { ...product, quantity: 1 }]);
+      setCart([...cart, { ...product, quantity: 1, discount: 0 }]);
     }
   };
 
@@ -62,6 +62,17 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
         if (newQty > product.stock) return item; 
         if (newQty < 1) return item;
         return { ...item, quantity: newQty };
+      }
+      return item;
+    }));
+  };
+
+  const updateDiscount = (id: string, discount: number) => {
+    // Ensure discount is between 0 and 100
+    const validDiscount = Math.min(100, Math.max(0, discount));
+    setCart(cart.map(item => {
+      if (item.id === id) {
+        return { ...item, discount: validDiscount };
       }
       return item;
     }));
@@ -89,7 +100,12 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
     }
   };
 
-  const cartTotal = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+  const getDiscountedPrice = (item: CartItem) => {
+    const discount = item.discount || 0;
+    return item.price * (1 - discount / 100);
+  };
+
+  const cartTotal = cart.reduce((acc, item) => acc + (getDiscountedPrice(item) * item.quantity), 0);
 
   const generatePDF = async (items: CartItem[], total: number, invoiceId: string) => {
     const doc = new jsPDF();
@@ -163,12 +179,20 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
         }
     }
 
-    const tableData = items.map(item => [
-      item.name + (item.brand ? ` (${item.brand})` : ''),
-      item.quantity.toString(),
-      `${currency}${item.price.toFixed(2)}`,
-      `${currency}${(item.price * item.quantity).toFixed(2)}`
-    ]);
+    const tableData = items.map(item => {
+      const discountedPrice = getDiscountedPrice(item);
+      let name = item.name + (item.brand ? ` (${item.brand})` : '');
+      if (item.discount && item.discount > 0) {
+        name += `\n(Disc: ${item.discount}%)`;
+      }
+      
+      return [
+        name,
+        item.quantity.toString(),
+        `${currency}${discountedPrice.toFixed(2)}`,
+        `${currency}${(discountedPrice * item.quantity).toFixed(2)}`
+      ];
+    });
 
     autoTable(doc, {
       startY: customFieldY + 4,
@@ -198,6 +222,12 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
     
     const invoiceId = `INV-${Math.floor(Math.random() * 1000000)}`;
     
+    // Process items to include effective price after discount
+    const processedCart = cart.map(item => ({
+       ...item,
+       price: getDiscountedPrice(item) // Override price with discounted price for sales record
+    }));
+
     // Prepare Sale Data with extra fields
     const saleExtras: any = {};
     if (shop.businessType === 'CLINIC' || shop.businessType === 'PHARMACY') {
@@ -212,7 +242,7 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
     }
 
     try {
-        await (onCompleteSale as any)(cart, cartTotal, saleExtras);
+        await (onCompleteSale as any)(processedCart, cartTotal, saleExtras);
         
         try {
           await generatePDF(cart, cartTotal, invoiceId);
@@ -398,20 +428,40 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
 
             <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-white dark:bg-slate-800">
               {cart.map(item => (
-                <div key={item.id} className="flex justify-between items-center bg-white dark:bg-slate-700 p-2 rounded-lg border border-slate-100 dark:border-slate-600 shadow-sm">
-                  <div className="flex-1 min-w-0 mr-2">
-                    <h4 className="font-medium text-sm text-slate-900 dark:text-white truncate">{item.name}</h4>
-                    <p className="text-xs text-slate-500 dark:text-slate-300">{currency}{item.price.toFixed(2)}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center bg-slate-100 dark:bg-slate-600 rounded-lg">
-                      <button onClick={() => updateQuantity(item.id, -1)} className="p-1 hover:text-primary-600 dark:hover:text-primary-300 text-slate-600 dark:text-slate-300"><Minus size={14} /></button>
-                      <span className="w-6 text-center text-sm font-medium text-slate-800 dark:text-white">{item.quantity}</span>
-                      <button onClick={() => updateQuantity(item.id, 1)} className="p-1 hover:text-primary-600 dark:hover:text-primary-300 text-slate-600 dark:text-slate-300"><Plus size={14} /></button>
+                <div key={item.id} className="flex flex-col bg-white dark:bg-slate-700 p-3 rounded-lg border border-slate-100 dark:border-slate-600 shadow-sm gap-2">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1 min-w-0 mr-2">
+                        <h4 className="font-medium text-sm text-slate-900 dark:text-white truncate">{item.name}</h4>
+                        <div className="flex items-center gap-2 text-xs">
+                            <span className="text-slate-500 dark:text-slate-300">{currency}{item.price.toFixed(2)}</span>
+                            {item.discount && item.discount > 0 ? (
+                                <span className="text-green-600 dark:text-green-400 font-medium bg-green-50 dark:bg-green-900/20 px-1 rounded">-{item.discount}%</span>
+                            ) : null}
+                        </div>
                     </div>
                     <button onClick={() => removeFromCart(item.id)} className="text-red-400 hover:text-red-600">
                       <Trash2 size={16} />
                     </button>
+                  </div>
+                  
+                  <div className="flex justify-between items-center border-t border-slate-100 dark:border-slate-600 pt-2">
+                     <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-400 flex items-center gap-1"><Percent size={10} /> Disc</span>
+                        <input 
+                           type="number"
+                           min="0"
+                           max="100"
+                           value={item.discount || 0}
+                           onChange={(e) => updateDiscount(item.id, Number(e.target.value))}
+                           className="w-12 text-center text-xs py-1 rounded border border-slate-200 dark:border-slate-500 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 outline-none focus:border-primary-500"
+                        />
+                     </div>
+                     
+                     <div className="flex items-center bg-slate-100 dark:bg-slate-600 rounded-lg">
+                        <button onClick={() => updateQuantity(item.id, -1)} className="p-1 hover:text-primary-600 dark:hover:text-primary-300 text-slate-600 dark:text-slate-300"><Minus size={14} /></button>
+                        <span className="w-8 text-center text-sm font-medium text-slate-800 dark:text-white">{item.quantity}</span>
+                        <button onClick={() => updateQuantity(item.id, 1)} className="p-1 hover:text-primary-600 dark:hover:text-primary-300 text-slate-600 dark:text-slate-300"><Plus size={14} /></button>
+                     </div>
                   </div>
                 </div>
               ))}
