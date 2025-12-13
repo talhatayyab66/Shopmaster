@@ -85,4 +85,4 @@ export interface Message {
   readBy: string[]; // Array of User IDs who have read the message
 }
 
-export type ViewState = 'dashboard' | 'inventory' | 'pos' | 'orders' | 'staff' | 'settings' | 'ai-assistant' | 'chat';
+export type ViewState = 'dashboard' | 'inventory' | 'pos' | 'orders' | 'staff' | 'settings' | 'chat';

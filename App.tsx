@@ -8,7 +8,6 @@ import POS from './components/POS';
 import SalesHistory from './components/SalesHistory';
 import Staff from './components/Staff';
 import ShopChat from './components/ShopChat';
-import AIAssistant from './components/AIAssistant';
 import Settings from './components/Settings';
 import EmailConfirmedPage from './app/authenticate/page';
 import { 
@@ -426,12 +425,6 @@ const App = () => {
       case 'staff':
         return user.role === UserRole.ADMIN ? (
           <Staff staff={staffList} shopId={shop.id} refreshStaff={refreshData} />
-        ) : (
-           <div className="text-center mt-20 text-slate-500">Access Restricted</div>
-        );
-      case 'ai-assistant':
-        return user.role === UserRole.ADMIN ? (
-          <AIAssistant products={products} sales={sales} />
         ) : (
            <div className="text-center mt-20 text-slate-500">Access Restricted</div>
         );
