@@ -401,6 +401,7 @@ const App = () => {
             onDelete={handleDeleteProduct} 
             defaultFilter={inventoryFilter}
             currency={shop.currency || '$'}
+            businessType={shop.businessType}
           />
         );
       case 'pos':

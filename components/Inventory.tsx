@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Search, Edit2, Trash2, AlertCircle, Filter, X, Upload, Download, FileSpreadsheet, Check, AlertTriangle, ArrowRight, CheckSquare, Square, Printer } from 'lucide-react';
-import { Product, User, UserRole } from '../types';
+import { Product, User, UserRole, BusinessType } from '../types';
 import { Card, Button, Input, Modal } from './ui/LayoutComponents';
 import * as XLSX from 'xlsx';
 import { bulkUpsertProducts } from '../services/storageService';
@@ -14,6 +14,7 @@ interface InventoryProps {
   onDelete: (id: string) => Promise<void>;
   defaultFilter?: 'all' | 'low-stock';
   currency: string;
+  businessType: BusinessType;
 }
 
 interface PreviewItem extends Product {
@@ -22,7 +23,7 @@ interface PreviewItem extends Product {
   _originalName?: string;
 }
 
-const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete, defaultFilter = 'all', currency }) => {
+const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete, defaultFilter = 'all', currency, businessType }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -37,6 +38,9 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete,
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [previewData, setPreviewData] = useState<PreviewItem[]>([]);
   
+  // Check if shop is medical type (Clinic or Pharmacy)
+  const isMedical = businessType === 'CLINIC' || businessType === 'PHARMACY';
+
   useEffect(() => {
     setShowLowStockOnly(defaultFilter === 'low-stock');
   }, [defaultFilter]);
@@ -404,7 +408,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete,
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
                 <input
                     type="text"
-                    placeholder="Search name, brand, formula or SKU..."
+                    placeholder={isMedical ? "Search name, brand, formula or SKU..." : "Search name or SKU..."}
                     className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-primary-500 focus:border-primary-500 outline-none"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
@@ -485,8 +489,8 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete,
                       {isAllSelected ? <CheckSquare size={18} /> : (isPartiallySelected ? <div className="w-[14px] h-[14px] bg-primary-600 rounded-sm mx-[2px]"/> : <Square size={18} />)}
                    </button>
                 </th>
-                <th className="px-6 py-4">Item Name / Formula</th>
-                <th className="px-6 py-4">Brand / Category</th>
+                <th className="px-6 py-4">{isMedical ? 'Item Name / Formula' : 'Item Name'}</th>
+                <th className="px-6 py-4">{isMedical ? 'Brand / Category' : 'Category'}</th>
                 <th className="px-6 py-4">Price</th>
                 <th className="px-6 py-4">Stock</th>
                 <th className="px-6 py-4">Status</th>
@@ -503,11 +507,11 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete,
                   </td>
                   <td className="px-6 py-4">
                     <div className="font-medium text-slate-900 dark:text-white">{product.name}</div>
-                    {product.formula && <div className="text-xs text-slate-500 italic">{product.formula}</div>}
+                    {isMedical && product.formula && <div className="text-xs text-slate-500 italic">{product.formula}</div>}
                     {product.sku && <div className="text-[10px] text-slate-400 font-mono mt-0.5">{product.sku}</div>}
                   </td>
                   <td className="px-6 py-4">
-                     {product.brand && <div className="text-slate-700 dark:text-slate-300 font-medium">{product.brand}</div>}
+                     {isMedical && product.brand && <div className="text-slate-700 dark:text-slate-300 font-medium">{product.brand}</div>}
                      <div className="text-slate-500 text-xs">{product.category}</div>
                   </td>
                   <td className="px-6 py-4 font-medium text-slate-900 dark:text-white">{currency}{product.price.toFixed(2)}</td>
@@ -572,26 +576,29 @@ const Inventory: React.FC<InventoryProps> = ({ products, user, onSave, onDelete,
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input 
-            label="Item Name / Medicine Name" 
+            label={isMedical ? "Item Name / Medicine Name" : "Item Name"}
             value={formData.name} 
             onChange={e => setFormData({...formData, name: e.target.value})} 
             required 
             autoFocus
           />
-          <div className="grid grid-cols-2 gap-4">
-             <Input 
-                label="Formula (Generic)" 
-                value={formData.formula} 
-                onChange={e => setFormData({...formData, formula: e.target.value})} 
-                placeholder="e.g. Paracetamol"
-             />
-             <Input 
-                label="Brand Name" 
-                value={formData.brand} 
-                onChange={e => setFormData({...formData, brand: e.target.value})} 
-                placeholder="e.g. Panadol"
-             />
-          </div>
+          
+          {isMedical && (
+            <div className="grid grid-cols-2 gap-4">
+              <Input 
+                  label="Formula (Generic)" 
+                  value={formData.formula} 
+                  onChange={e => setFormData({...formData, formula: e.target.value})} 
+                  placeholder="e.g. Paracetamol"
+              />
+              <Input 
+                  label="Brand Name" 
+                  value={formData.brand} 
+                  onChange={e => setFormData({...formData, brand: e.target.value})} 
+                  placeholder="e.g. Panadol"
+              />
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <Input 
