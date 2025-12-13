@@ -6,6 +6,18 @@ const generateId = () => crypto.randomUUID();
 
 // --- Auth & User ---
 
+export const sendPasswordResetEmail = async (email: string) => {
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin,
+  });
+  if (error) throw new Error(error.message);
+};
+
+export const updateUserPassword = async (password: string) => {
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) throw new Error(error.message);
+};
+
 export const createUser = async (user: Omit<User, 'id'>): Promise<User> => {
   const { data: existing } = await supabase
     .from('users')

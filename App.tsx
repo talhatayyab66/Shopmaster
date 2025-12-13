@@ -10,6 +10,7 @@ import Staff from './components/Staff';
 import ShopChat from './components/ShopChat';
 import Settings from './components/Settings';
 import EmailConfirmedPage from './app/authenticate/page';
+import { Card, Button, Input, Modal } from './components/ui/LayoutComponents';
 import { 
   getProducts, 
   saveProduct, 
@@ -20,7 +21,8 @@ import {
   logoutUser,
   subscribeToShopUpdates,
   subscribeToChat,
-  clearSalesHistory
+  clearSalesHistory,
+  updateUserPassword
 } from './services/storageService';
 import { supabase } from './services/supabaseClient';
 
@@ -95,6 +97,11 @@ const App = () => {
   const [user, setUser] = useState<User | null>(null);
   const [shop, setShop] = useState<Shop | null>(null);
   const [currentView, setCurrentView] = useState<ViewState>('dashboard');
+  
+  // Password Reset State
+  const [showPasswordReset, setShowPasswordReset] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [passwordResetLoading, setPasswordResetLoading] = useState(false);
   
   // Navigation State
   const [inventoryFilter, setInventoryFilter] = useState<'all' | 'low-stock'>('all');
@@ -198,6 +205,17 @@ const App = () => {
     };
     
     restoreSession();
+
+    // Listen for Password Recovery Events
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setShowPasswordReset(true);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    }
   }, []);
 
   // Fetch Data when user/shop changes
@@ -355,6 +373,25 @@ const App = () => {
     }
   };
 
+  const handlePasswordResetSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword.length < 6) {
+      alert("Password must be at least 6 characters");
+      return;
+    }
+    setPasswordResetLoading(true);
+    try {
+      await updateUserPassword(newPassword);
+      alert("Password updated successfully!");
+      setShowPasswordReset(false);
+      setNewPassword('');
+    } catch (error: any) {
+      alert("Failed to update password: " + error.message);
+    } finally {
+      setPasswordResetLoading(false);
+    }
+  };
+
   // Handler for dashboard interactivity
   const handleDashboardNavigation = (view: 'inventory' | 'orders', filter?: 'low-stock') => {
     if (filter) {
@@ -374,7 +411,39 @@ const App = () => {
   }
 
   if (!user || !shop) {
-    return <Auth onLogin={(u, s) => { setUser(u); setShop(s); }} />;
+    return (
+      <>
+        <Auth onLogin={(u, s) => { setUser(u); setShop(s); }} />
+        {/* If user clicks reset link but isn't logged in yet, the Auth component shows.
+            The onAuthStateChange might fire and set showPasswordReset, but Auth blocks.
+            However, usually Password Recovery logs the user in automatically. 
+            So we should render the Modal if showPasswordReset is true regardless of Auth state, 
+            but typically user needs to be 'session-authenticated' for updateUserPassword to work.
+        */}
+        <Modal 
+          isOpen={showPasswordReset} 
+          onClose={() => setShowPasswordReset(false)}
+          title="Reset Password"
+        >
+           <form onSubmit={handlePasswordResetSubmit} className="space-y-4">
+              <p className="text-sm text-slate-600 dark:text-slate-300">Enter your new password below.</p>
+              <Input 
+                label="New Password" 
+                type="password"
+                value={newPassword}
+                onChange={e => setNewPassword(e.target.value)}
+                required
+                placeholder="New password"
+              />
+              <div className="flex justify-end pt-2">
+                 <Button type="submit" disabled={passwordResetLoading}>
+                    {passwordResetLoading ? 'Updating...' : 'Update Password'}
+                 </Button>
+              </div>
+           </form>
+        </Modal>
+      </>
+    );
   }
 
   const renderView = () => {
@@ -475,6 +544,30 @@ const App = () => {
           {renderView()}
         </div>
       </main>
+
+      {/* Password Reset Modal - Global */}
+      <Modal 
+          isOpen={showPasswordReset} 
+          onClose={() => setShowPasswordReset(false)}
+          title="Reset Password"
+        >
+           <form onSubmit={handlePasswordResetSubmit} className="space-y-4">
+              <p className="text-sm text-slate-600 dark:text-slate-300">Enter your new password below.</p>
+              <Input 
+                label="New Password" 
+                type="password"
+                value={newPassword}
+                onChange={e => setNewPassword(e.target.value)}
+                required
+                placeholder="New password"
+              />
+              <div className="flex justify-end pt-2">
+                 <Button type="submit" disabled={passwordResetLoading}>
+                    {passwordResetLoading ? 'Updating...' : 'Update Password'}
+                 </Button>
+              </div>
+           </form>
+        </Modal>
     </div>
   );
 };

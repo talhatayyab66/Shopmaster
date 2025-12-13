@@ -1,21 +1,26 @@
 import React, { useState } from 'react';
 import { User, Shop, BusinessType } from '../types';
 import { Card, Button, Input } from './ui/LayoutComponents';
-import { createShop, loginUser } from '../services/storageService';
-import { Store, MailCheck, ArrowLeft, Stethoscope, Pill, Utensils, Monitor, ShoppingCart } from 'lucide-react';
+import { createShop, loginUser, sendPasswordResetEmail } from '../services/storageService';
+import { Store, MailCheck, ArrowLeft, Stethoscope, Pill, Utensils, Monitor, ShoppingCart, KeyRound } from 'lucide-react';
 
 interface AuthProps {
   onLogin: (user: User, shop: Shop) => void;
 }
 
 const Auth: React.FC<AuthProps> = ({ onLogin }) => {
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [mode, setMode] = useState<'login' | 'register' | 'forgot-password'>('login');
   const [verificationSent, setVerificationSent] = useState(false);
+  const [resetEmailSent, setResetEmailSent] = useState(false);
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
 
   // Login State (Identifier can be Username or Email)
   const [loginData, setLoginData] = useState({ identifier: '', password: '' });
+
+  // Forgot Password State
+  const [forgotEmail, setForgotEmail] = useState('');
 
   // Register State
   const [regData, setRegData] = useState({
@@ -73,6 +78,24 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     }
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccessMsg('');
+    if (!forgotEmail) return;
+
+    setLoading(true);
+    try {
+      await sendPasswordResetEmail(forgotEmail);
+      setResetEmailSent(true);
+      setSuccessMsg(`Password reset link sent to ${forgotEmail}`);
+    } catch (err: any) {
+      setError(err.message || 'Failed to send reset email');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (verificationSent) {
     return (
       <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
@@ -123,13 +146,13 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
           <div className="flex border-b border-slate-100 mb-6">
             <button
               className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${mode === 'login' ? 'border-primary-600 text-primary-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
-              onClick={() => { setMode('login'); setError(''); }}
+              onClick={() => { setMode('login'); setError(''); setSuccessMsg(''); }}
             >
               Log In
             </button>
             <button
               className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${mode === 'register' ? 'border-primary-600 text-primary-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
-              onClick={() => { setMode('register'); setError(''); }}
+              onClick={() => { setMode('register'); setError(''); setSuccessMsg(''); }}
             >
               Create Account
             </button>
@@ -141,7 +164,13 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
             </div>
           )}
 
-          {mode === 'login' ? (
+          {successMsg && (
+            <div className="mb-4 p-3 bg-green-50 text-green-600 text-sm rounded-lg border border-green-100">
+              {successMsg}
+            </div>
+          )}
+
+          {mode === 'login' && (
             <form onSubmit={handleLogin} className="space-y-4">
               <Input
                 label="Email (Admin) or Username (Staff)"
@@ -158,11 +187,63 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                 required
                 placeholder="Enter password"
               />
+              <div className="flex justify-end">
+                <button 
+                  type="button" 
+                  onClick={() => { setMode('forgot-password'); setError(''); setSuccessMsg(''); }}
+                  className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+                >
+                  Forgot Password?
+                </button>
+              </div>
               <Button type="submit" className="w-full py-3" disabled={loading}>
                 {loading ? 'Authenticating...' : 'Access System'}
               </Button>
             </form>
-          ) : (
+          )}
+
+          {mode === 'forgot-password' && (
+             <div className="space-y-6 animate-[fadeIn_0.3s_ease-out]">
+               <div className="text-center">
+                  <div className="w-12 h-12 bg-primary-100 text-primary-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                     <KeyRound size={24} />
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-800">Reset Password</h3>
+                  <p className="text-sm text-slate-500 mt-1">Enter your admin email address to receive a password reset link.</p>
+               </div>
+
+               {!resetEmailSent ? (
+                  <form onSubmit={handleForgotPassword} className="space-y-4">
+                    <Input
+                      label="Admin Email"
+                      type="email"
+                      value={forgotEmail}
+                      onChange={e => setForgotEmail(e.target.value)}
+                      required
+                      placeholder="admin@example.com"
+                      autoFocus
+                    />
+                    <Button type="submit" className="w-full py-3" disabled={loading}>
+                      {loading ? 'Sending Link...' : 'Send Reset Link'}
+                    </Button>
+                  </form>
+               ) : (
+                  <div className="p-4 bg-slate-50 rounded-lg text-sm text-slate-600 text-center">
+                    Check your email for the reset link. Once you click it, you'll be redirected back here to set a new password.
+                  </div>
+               )}
+
+               <button 
+                  type="button"
+                  onClick={() => { setMode('login'); setResetEmailSent(false); setError(''); }}
+                  className="w-full text-sm text-slate-500 hover:text-slate-800 flex items-center justify-center gap-2"
+               >
+                 <ArrowLeft size={16} /> Back to Login
+               </button>
+             </div>
+          )}
+
+          {mode === 'register' && (
             <form onSubmit={handleRegister} className="space-y-4">
               <div>
                 <label className="mb-1 text-sm font-medium text-slate-700">Business Type</label>
