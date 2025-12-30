@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Search, Plus, Minus, Trash2, Printer, CheckCircle, ScanBarcode, User as UserIcon, Activity, Phone, Utensils, Stethoscope, ShoppingBag, Package, Percent, DollarSign, FilePlus } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, Printer, CheckCircle, ScanBarcode, User as UserIcon, Activity, Phone, Utensils, Stethoscope, ShoppingBag, Package, Percent, DollarSign, FilePlus, ChevronDown, ChevronUp } from 'lucide-react';
 import { Product, CartItem, User, Shop } from '../types';
 import { Card, Button, Input } from './ui/LayoutComponents';
 import { jsPDF } from 'jspdf';
@@ -18,6 +18,7 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
   const [isSuccess, setIsSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'products' | 'cart'>('products');
+  const [isDetailsExpanded, setIsDetailsExpanded] = useState(true);
   
   // Customer / Patient Data
   const [customerData, setCustomerData] = useState({
@@ -341,96 +342,124 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
   const renderCustomerFields = () => {
       const isClinic = shop.businessType === 'CLINIC';
       const isPharmacy = shop.businessType === 'PHARMACY';
+      const isLongCurrency = currency.length > 1;
+      const prefixPadding = isLongCurrency ? (currency.length > 3 ? 'pl-16' : 'pl-12') : 'pl-8';
 
       if (isClinic || isPharmacy) {
           return (
-              <div className="space-y-3 mb-4 p-3 bg-blue-50 dark:bg-slate-800/50 rounded-lg border border-blue-100 dark:border-slate-700">
-                  <h3 className="text-sm font-semibold text-blue-800 dark:text-blue-300 flex items-center gap-2">
-                      <Stethoscope size={14} /> Patient Details
-                  </h3>
-                  <Input 
-                     placeholder="Patient Name" 
-                     value={customerData.name} 
-                     onChange={e => setCustomerData({...customerData, name: e.target.value})}
-                     className="bg-white"
-                  />
-                  <Input 
-                     placeholder="Diagnosis (Optional)" 
-                     value={customerData.diagnosis} 
-                     onChange={e => setCustomerData({...customerData, diagnosis: e.target.value})}
-                     className="bg-white"
-                  />
+              <div className="bg-blue-50 dark:bg-slate-800/80 rounded-xl border border-blue-100 dark:border-slate-700 overflow-hidden shadow-sm">
+                  <button 
+                    onClick={() => setIsDetailsExpanded(!isDetailsExpanded)}
+                    className="w-full px-4 py-3 flex items-center justify-between text-blue-800 dark:text-blue-300 hover:bg-blue-100/50 transition-colors"
+                  >
+                      <div className="flex items-center gap-2 font-bold text-sm">
+                          <Stethoscope size={16} /> 
+                          {customerData.name ? `Patient: ${customerData.name}` : 'Patient Details'}
+                      </div>
+                      {isDetailsExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                  </button>
+                  
+                  {isDetailsExpanded && (
+                      <div className="p-4 space-y-4 pt-0 animate-[fadeIn_0.2s_ease-out]">
+                          <Input 
+                             placeholder="Patient Name" 
+                             value={customerData.name} 
+                             onChange={e => setCustomerData({...customerData, name: e.target.value})}
+                             className="bg-white dark:bg-slate-900 border-blue-100"
+                          />
+                          <Input 
+                             placeholder="Diagnosis (Optional)" 
+                             value={customerData.diagnosis} 
+                             onChange={e => setCustomerData({...customerData, diagnosis: e.target.value})}
+                             className="bg-white dark:bg-slate-900 border-blue-100"
+                          />
 
-                  {isClinic && (
-                      <div className="grid grid-cols-2 gap-3 pt-2 border-t border-blue-100 dark:border-slate-700">
-                          <div>
-                              <label className="text-xs text-slate-500 font-medium mb-1 block">Consultation Fee</label>
-                              <div className="relative">
-                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">{currency}</span>
-                                  <input 
-                                    type="number"
-                                    min="0"
-                                    placeholder="0.00"
-                                    value={clinicFees.consultation}
-                                    onChange={e => setClinicFees({...clinicFees, consultation: e.target.value})}
-                                    className="w-full pl-7 pr-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-primary-500 focus:border-primary-500 outline-none"
-                                  />
+                          {isClinic && (
+                              <div className="grid grid-cols-2 gap-4 pt-2 border-t border-blue-100 dark:border-slate-700">
+                                  <div>
+                                      <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1 block">Consultation Fee</label>
+                                      <div className="relative">
+                                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold pointer-events-none">
+                                              {currency}
+                                          </span>
+                                          <input 
+                                            type="number"
+                                            min="0"
+                                            placeholder="0.00"
+                                            value={clinicFees.consultation}
+                                            onChange={e => setClinicFees({...clinicFees, consultation: e.target.value})}
+                                            className={`w-full ${prefixPadding} pr-3 py-2.5 text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all shadow-sm`}
+                                          />
+                                      </div>
+                                  </div>
+                                  <div>
+                                      <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1 block">Other Charges</label>
+                                      <div className="relative">
+                                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold pointer-events-none">
+                                              {currency}
+                                          </span>
+                                          <input 
+                                            type="number"
+                                            min="0"
+                                            placeholder="0.00"
+                                            value={clinicFees.procedures}
+                                            onChange={e => setClinicFees({...clinicFees, procedures: e.target.value})}
+                                            className={`w-full ${prefixPadding} pr-3 py-2.5 text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all shadow-sm`}
+                                          />
+                                      </div>
+                                  </div>
                               </div>
-                          </div>
-                          <div>
-                              <label className="text-xs text-slate-500 font-medium mb-1 block">Other Charges</label>
-                              <div className="relative">
-                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">{currency}</span>
-                                  <input 
-                                    type="number"
-                                    min="0"
-                                    placeholder="0.00"
-                                    value={clinicFees.procedures}
-                                    onChange={e => setClinicFees({...clinicFees, procedures: e.target.value})}
-                                    className="w-full pl-7 pr-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-primary-500 focus:border-primary-500 outline-none"
-                                  />
-                              </div>
-                          </div>
+                          )}
                       </div>
                   )}
               </div>
           );
       } else if (shop.businessType === 'RESTAURANT') {
           return (
-              <div className="space-y-3 mb-4 p-3 bg-orange-50 dark:bg-slate-800/50 rounded-lg border border-orange-100 dark:border-slate-700">
-                  <h3 className="text-sm font-semibold text-orange-800 dark:text-orange-300 flex items-center gap-2">
-                      <Utensils size={14} /> Customer Info
-                  </h3>
-                  <Input 
-                     placeholder="Customer Name" 
-                     value={customerData.name} 
-                     onChange={e => setCustomerData({...customerData, name: e.target.value})}
-                     className="bg-white"
-                  />
-                  <div className="grid grid-cols-2 gap-2">
-                    <Input 
-                        placeholder="Age" 
-                        value={customerData.age} 
-                        onChange={e => setCustomerData({...customerData, age: e.target.value})}
-                        className="bg-white"
-                    />
-                    <Input 
-                        placeholder="Contact" 
-                        value={customerData.contact} 
-                        onChange={e => setCustomerData({...customerData, contact: e.target.value})}
-                        className="bg-white"
-                    />
-                  </div>
+              <div className="bg-orange-50 dark:bg-slate-800/50 rounded-xl border border-orange-100 dark:border-slate-700 overflow-hidden shadow-sm">
+                  <button 
+                    onClick={() => setIsDetailsExpanded(!isDetailsExpanded)}
+                    className="w-full px-4 py-3 flex items-center justify-between text-orange-800 dark:text-orange-300"
+                  >
+                      <div className="flex items-center gap-2 font-bold text-sm">
+                          <Utensils size={16} /> Customer Info
+                      </div>
+                      {isDetailsExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                  </button>
+                  {isDetailsExpanded && (
+                      <div className="p-4 space-y-3 pt-0">
+                        <Input 
+                            placeholder="Customer Name" 
+                            value={customerData.name} 
+                            onChange={e => setCustomerData({...customerData, name: e.target.value})}
+                            className="bg-white dark:bg-slate-900"
+                        />
+                        <div className="grid grid-cols-2 gap-2">
+                            <Input 
+                                placeholder="Age" 
+                                value={customerData.age} 
+                                onChange={e => setCustomerData({...customerData, age: e.target.value})}
+                                className="bg-white dark:bg-slate-900"
+                            />
+                            <Input 
+                                placeholder="Contact" 
+                                value={customerData.contact} 
+                                onChange={e => setCustomerData({...customerData, contact: e.target.value})}
+                                className="bg-white dark:bg-slate-900"
+                            />
+                        </div>
+                      </div>
+                  )}
               </div>
           );
       } else {
-          // Standard Shop
           return (
-              <div className="mb-4">
+              <div className="mb-2">
                   <Input 
                      placeholder="Customer Name (Optional)" 
                      value={customerData.name} 
                      onChange={e => setCustomerData({...customerData, name: e.target.value})}
+                     className="bg-white dark:bg-slate-900"
                   />
               </div>
           );
@@ -440,12 +469,12 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
   return (
     <div className="flex flex-col h-[calc(100vh-200px)] md:h-[calc(100vh-140px)]">
       {/* Mobile Tab Switcher */}
-      <div className="lg:hidden flex mb-4 bg-white dark:bg-slate-800 rounded-lg p-1 border border-slate-200 dark:border-slate-700 shrink-0 shadow-sm">
+      <div className="lg:hidden flex mb-4 bg-white dark:bg-slate-800 rounded-xl p-1.5 border border-slate-200 dark:border-slate-700 shrink-0 shadow-sm">
         <button
           onClick={() => setActiveTab('products')}
-          className={`flex-1 py-2 px-4 rounded-md text-sm font-medium flex items-center justify-center gap-2 transition-all ${
+          className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all ${
             activeTab === 'products'
-              ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400'
+              ? 'bg-primary-600 text-white shadow-md'
               : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'
           }`}
         >
@@ -454,16 +483,16 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
         </button>
         <button
           onClick={() => setActiveTab('cart')}
-          className={`flex-1 py-2 px-4 rounded-md text-sm font-medium flex items-center justify-center gap-2 transition-all relative ${
+          className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all relative ${
             activeTab === 'cart'
-              ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400'
+              ? 'bg-primary-600 text-white shadow-md'
               : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'
           }`}
         >
           <ShoppingBag size={18} />
           Cart
           {cart.length > 0 && (
-            <span className="bg-primary-600 text-white text-[10px] px-2 py-0.5 rounded-full ml-2 text-center font-bold shadow-sm">
+            <span className={`text-[10px] px-2 py-0.5 rounded-full ml-2 text-center font-bold border ${activeTab === 'cart' ? 'bg-white text-primary-600 border-white' : 'bg-primary-600 text-white border-primary-600'}`}>
               {cart.reduce((a,c) => a + c.quantity, 0)}
             </span>
           )}
@@ -480,15 +509,15 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
             <input
               ref={searchInputRef}
               type="text"
-              placeholder={shop.businessType === 'PHARMACY' ? "Search by Name, Formula, Brand..." : "Scan barcode or search product..."}
-              className="w-full pl-10 pr-12 py-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-primary-500 outline-none shadow-sm transition-all focus:border-primary-500"
+              placeholder={shop.businessType === 'PHARMACY' ? "Search Name, Formula, Brand..." : "Scan barcode or search..."}
+              className="w-full pl-10 pr-12 py-3.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary-500/10 outline-none shadow-sm transition-all focus:border-primary-500"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               onKeyDown={handleKeyDown}
               autoFocus
             />
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
-              <ScanBarcode size={20} className={searchTerm ? "text-primary-500" : ""} />
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+              <ScanBarcode size={22} className={searchTerm ? "text-primary-500 animate-pulse" : ""} />
             </div>
           </div>
 
@@ -497,127 +526,135 @@ const POS: React.FC<POSProps> = ({ products, user, shop, onCompleteSale }) => {
               <button
                 key={product.id}
                 onClick={() => addToCart(product)}
-                className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-primary-300 transition-all text-left flex flex-col justify-between group h-32 md:h-auto"
+                className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-primary-300 transition-all text-left flex flex-col justify-between group active:scale-[0.98]"
               >
                 <div>
-                  <h4 className="font-semibold text-slate-800 dark:text-slate-100 line-clamp-2 text-sm md:text-base">{product.name}</h4>
-                  {product.brand && <p className="text-xs text-primary-600 font-medium">{product.brand}</p>}
-                  {product.formula && <p className="text-[10px] text-slate-500 italic mt-0.5 truncate" title={product.formula}>{product.formula}</p>}
-                  
-                  {!product.formula && <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{product.category}</p>}
+                  <h4 className="font-bold text-slate-800 dark:text-slate-100 line-clamp-2 text-sm leading-tight">{product.name}</h4>
+                  {product.brand && <p className="text-[10px] text-primary-600 font-bold uppercase mt-1 tracking-wider">{product.brand}</p>}
+                  {product.formula && <p className="text-[10px] text-slate-400 italic mt-0.5 truncate" title={product.formula}>{product.formula}</p>}
                 </div>
-                <div className="mt-2 flex justify-between items-end">
-                  <span className="font-bold text-primary-600 dark:text-primary-400 text-sm md:text-base">{currency}{product.price.toFixed(2)}</span>
-                  <span className="text-[10px] md:text-xs bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded text-slate-600 dark:text-slate-300">Qty: {product.stock}</span>
+                <div className="mt-3 flex justify-between items-center">
+                  <span className="font-extrabold text-primary-600 dark:text-primary-400 text-sm">{currency}{product.price.toFixed(2)}</span>
+                  <span className="text-[9px] font-bold bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded text-slate-500 dark:text-slate-300">STK: {product.stock}</span>
                 </div>
               </button>
             ))}
-            {availableProducts.length === 0 && (
-              <div className="col-span-full flex items-center justify-center text-slate-400 h-40">
-                {searchTerm ? 'No matching items found.' : 'No items found.'}
-              </div>
-            )}
           </div>
         </div>
 
         {/* Cart & Checkout */}
         <div className={`w-full lg:w-96 flex-col h-full ${activeTab === 'cart' ? 'flex' : 'hidden lg:flex'}`}>
-           <Card className="flex flex-col p-0 overflow-hidden border-0 shadow-lg ring-1 ring-slate-200 dark:ring-slate-700 h-full">
-            <div className="p-4 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center shrink-0">
+           <Card className="flex flex-col p-0 overflow-hidden border-0 shadow-2xl ring-1 ring-slate-200 dark:ring-slate-700 h-full bg-slate-50 dark:bg-slate-900 rounded-2xl">
+            {/* Cart Header */}
+            <div className="p-4 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center shrink-0">
               <div>
-                <h2 className="font-bold text-lg text-slate-800 dark:text-white">
+                <h2 className="font-black text-xl text-slate-900 dark:text-white tracking-tight">
                     {shop.businessType === 'RESTAURANT' ? 'Current Table' : 'Current Order'}
                 </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">{cart.length} Items</p>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{cart.length} Items Selected</p>
               </div>
-              <div className="font-bold text-xl text-primary-600 dark:text-primary-400">{currency}{finalTotal.toFixed(2)}</div>
+              <div className="text-right">
+                <div className="font-black text-2xl text-primary-600 dark:text-primary-400 leading-none">{currency}{finalTotal.toFixed(2)}</div>
+                <p className="text-[10px] font-bold text-slate-400 mt-1">TOTAL PAYABLE</p>
+              </div>
             </div>
 
-            <div className="p-4 border-b border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0">
+            {/* Sticky Patient/Customer Details */}
+            <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 shrink-0">
                 {renderCustomerFields()}
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-white dark:bg-slate-800">
+            {/* Scrollable Items List */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
               {cart.map(item => (
-                <div key={item.id} className="flex flex-col bg-white dark:bg-slate-700 p-3 rounded-lg border border-slate-100 dark:border-slate-600 shadow-sm gap-2">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1 min-w-0 mr-2">
-                        <h4 className="font-medium text-sm text-slate-900 dark:text-white truncate">{item.name}</h4>
-                        <div className="flex items-center gap-2 text-xs">
-                            <span className="text-slate-500 dark:text-slate-300">{currency}{item.price.toFixed(2)}</span>
+                <div key={item.id} className="flex flex-col bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm gap-3 animate-[fadeIn_0.2s_ease-out]">
+                  <div className="flex justify-between items-start gap-2">
+                    <div className="flex-1 min-w-0">
+                        <h4 className="font-bold text-sm text-slate-900 dark:text-white leading-tight">{item.name}</h4>
+                        <div className="flex items-center gap-2 mt-1.5">
+                            <span className="text-xs font-bold text-slate-400">{currency}{item.price.toFixed(2)}</span>
                             {item.discount && item.discount > 0 ? (
-                                <span className="text-green-600 dark:text-green-400 font-medium bg-green-50 dark:bg-green-900/20 px-1 rounded">-{item.discount}%</span>
+                                <span className="text-[10px] font-black text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-1.5 py-0.5 rounded uppercase">-{item.discount}% Off</span>
                             ) : null}
                         </div>
                     </div>
-                    <button onClick={() => removeFromCart(item.id)} className="text-red-400 hover:text-red-600">
+                    <button 
+                      onClick={() => removeFromCart(item.id)} 
+                      className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                    >
                       <Trash2 size={16} />
                     </button>
                   </div>
                   
-                  <div className="flex justify-between items-center border-t border-slate-100 dark:border-slate-600 pt-2">
+                  <div className="flex justify-between items-center pt-3 border-t border-slate-50 dark:border-slate-700">
                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-slate-400 flex items-center gap-1"><Percent size={10} /> Disc</span>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Disc %</span>
                         <input 
                            type="number"
                            min="0"
                            max="100"
                            value={item.discount || 0}
                            onChange={(e) => updateDiscount(item.id, Number(e.target.value))}
-                           className="w-12 text-center text-xs py-1 rounded border border-slate-200 dark:border-slate-500 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 outline-none focus:border-primary-500"
+                           className="w-12 text-center text-xs font-bold py-1 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary-500 outline-none"
                         />
                      </div>
                      
-                     <div className="flex items-center bg-slate-100 dark:bg-slate-600 rounded-lg">
-                        <button onClick={() => updateQuantity(item.id, -1)} className="p-1 hover:text-primary-600 dark:hover:text-primary-300 text-slate-600 dark:text-slate-300"><Minus size={14} /></button>
+                     <div className="flex items-center bg-slate-100 dark:bg-slate-700 rounded-xl p-1">
+                        <button onClick={() => updateQuantity(item.id, -1)} className="p-1.5 hover:bg-white dark:hover:bg-slate-600 rounded-lg transition-all text-slate-500 shadow-sm"><Minus size={14} /></button>
                         <input 
                             type="number"
                             min="1"
                             max={item.stock}
                             value={item.quantity}
                             onChange={(e) => updateQuantityExact(item.id, e.target.value)}
-                            className="w-12 text-center text-sm font-medium text-slate-800 dark:text-white bg-transparent border-0 outline-none p-0 appearance-none"
+                            className="w-10 text-center text-sm font-black text-slate-900 dark:text-white bg-transparent border-0 outline-none p-0 appearance-none"
                         />
-                        <button onClick={() => updateQuantity(item.id, 1)} className="p-1 hover:text-primary-600 dark:hover:text-primary-300 text-slate-600 dark:text-slate-300"><Plus size={14} /></button>
+                        <button onClick={() => updateQuantity(item.id, 1)} className="p-1.5 hover:bg-white dark:hover:bg-slate-600 rounded-lg transition-all text-slate-500 shadow-sm"><Plus size={14} /></button>
                      </div>
                   </div>
                 </div>
               ))}
 
-              {/* Fee Summaries in Cart List */}
+              {/* Empty State */}
+              {cart.length === 0 && consultationFee === 0 && procedureCharges === 0 && (
+                <div className="h-full flex flex-col items-center justify-center text-slate-400 py-12 opacity-50">
+                  <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4">
+                    <ShoppingBag size={24} />
+                  </div>
+                  <p className="text-sm font-bold uppercase tracking-widest">Cart is empty</p>
+                  <p className="text-[10px] mt-1">Add items or enter fees to proceed</p>
+                </div>
+              )}
+              
+              {/* Totals Summary row for clarity */}
               {(consultationFee > 0 || procedureCharges > 0) && (
-                  <div className="border-t border-dashed border-slate-200 dark:border-slate-700 pt-3 mt-2">
+                  <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-2">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Service Charges</p>
                       {consultationFee > 0 && (
-                          <div className="flex justify-between text-sm py-1">
-                              <span className="text-slate-600 dark:text-slate-300">Consultation</span>
-                              <span className="font-medium text-slate-900 dark:text-white">{currency}{consultationFee.toFixed(2)}</span>
+                          <div className="flex justify-between text-xs">
+                              <span className="text-slate-600 dark:text-slate-300">Consultation Fee</span>
+                              <span className="font-bold text-slate-900 dark:text-white">{currency}{consultationFee.toFixed(2)}</span>
                           </div>
                       )}
                       {procedureCharges > 0 && (
-                          <div className="flex justify-between text-sm py-1">
-                              <span className="text-slate-600 dark:text-slate-300">Procedures</span>
-                              <span className="font-medium text-slate-900 dark:text-white">{currency}{procedureCharges.toFixed(2)}</span>
+                          <div className="flex justify-between text-xs">
+                              <span className="text-slate-600 dark:text-slate-300">Procedure/Extra Charges</span>
+                              <span className="font-bold text-slate-900 dark:text-white">{currency}{procedureCharges.toFixed(2)}</span>
                           </div>
                       )}
                   </div>
               )}
-
-              {cart.length === 0 && consultationFee === 0 && procedureCharges === 0 && (
-                <div className="h-full flex flex-col items-center justify-center text-slate-400 py-8">
-                  <Printer size={32} className="mb-2 opacity-50" />
-                  <p className="text-sm">List is empty</p>
-                </div>
-              )}
             </div>
 
-            <div className="p-4 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 shrink-0">
+            {/* Bottom Actions */}
+            <div className="p-4 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 shrink-0 shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.1)]">
               <Button 
                 onClick={handleCheckout} 
                 disabled={(cart.length === 0 && finalTotal === 0) || loading} 
-                className="w-full flex items-center justify-center py-3 text-lg"
+                className="w-full flex items-center justify-center py-4 text-xl font-black rounded-2xl shadow-xl shadow-primary-500/20 active:scale-[0.97] transition-all"
               >
                 {isSuccess ? <CheckCircle className="mr-2" /> : <Printer className="mr-2" />}
-                {loading ? '...' : (isSuccess ? 'Dispensed' : (shop.businessType === 'CLINIC' || shop.businessType === 'PHARMACY' ? 'Dispense' : 'Checkout'))}
+                {loading ? 'Processing...' : (isSuccess ? 'Completed!' : (shop.businessType === 'CLINIC' || shop.businessType === 'PHARMACY' ? 'DISPENSE' : 'CHECKOUT'))}
               </Button>
             </div>
           </Card>
